@@ -59,6 +59,10 @@ jobs:
             echo "Publishing $LOCAL_VERSION (npm has $NPM_VERSION)"
           fi
 
+      - name: Update npm for OIDC support
+        if: steps.version.outputs.skip == 'false'
+        run: npm install -g npm@latest
+
       - name: Publish to npm
         if: steps.version.outputs.skip == 'false'
         run: npm publish --access public --provenance
