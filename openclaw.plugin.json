@@ -1,0 +1,8 @@
+{
+  "id": "nats-plugin",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

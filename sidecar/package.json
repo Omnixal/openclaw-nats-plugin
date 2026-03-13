@@ -1,0 +1,28 @@
+{
+  "name": "@omnixal/openclaw-nats-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit",
+    "db:generate": "bunx onebun-drizzle generate",
+    "db:push": "bunx onebun-drizzle push",
+    "db:studio": "bunx onebun-drizzle studio"
+  },
+  "dependencies": {
+    "@onebun/core": "^0.2.3",
+    "@onebun/drizzle": "^0.2.0",
+    "@onebun/envs": "^0.2.0",
+    "@onebun/logger": "^0.2.0",
+    "@onebun/nats": "^0.2.2",
+    "arktype": "^2.2.0",
+    "ulid": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

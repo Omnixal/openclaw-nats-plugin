@@ -1,0 +1,1 @@
+CREATE INDEX `dedup_events_seen_at_idx` ON `dedup_events` (`seen_at`);

@@ -1,0 +1,12 @@
+node_modules/
+*.test.ts
+dashboard/src/
+dashboard/node_modules/
+dashboard/package.json
+dashboard/vite.config.ts
+dashboard/tsconfig.json
+dashboard/index.html
+dashboard/bun.lock
+dashboard/components.json
+.github/
+docs/

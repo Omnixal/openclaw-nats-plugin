@@ -1,0 +1,48 @@
+{
+  "name": "@omnixal/openclaw-nats-plugin",
+  "version": "0.1.0",
+  "description": "NATS JetStream event-driven plugin for OpenClaw",
+  "license": "MIT",
+  "type": "module",
+  "main": "./index.ts",
+  "bin": {
+    "nats-plugin": "./bin/cli.ts"
+  },
+  "scripts": {
+    "build:dashboard": "cd dashboard && bun run build",
+    "prepublishOnly": "bun run build:dashboard"
+  },
+  "files": [
+    "index.ts",
+    "bin/",
+    "cli/",
+    "hooks/",
+    "plugins/",
+    "sidecar/",
+    "docker/",
+    "dashboard/dist/",
+    "openclaw.plugin.json",
+    "PLUGIN.md",
+    "!**/*.test.ts",
+    "!**/node_modules",
+    "!sidecar/data"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "openclaw": {
+    "hooks": [
+      "./hooks/gateway-startup",
+      "./hooks/lifecycle-publisher",
+      "./hooks/command-publisher"
+    ],
+    "plugins": [
+      "./plugins/nats-context-engine"
+    ]
+  },
+  "dependencies": {}
+}
