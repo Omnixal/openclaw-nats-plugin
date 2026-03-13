@@ -2,9 +2,9 @@ name: CI & Publish
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -42,7 +42,7 @@ jobs:
 
   publish:
     needs: ci
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,9 +74,7 @@ jobs:
 
       - name: Publish to npm
         if: steps.version.outputs.skip == 'false'
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance
 
       - name: Tag release
         if: steps.version.outputs.skip == 'false'
