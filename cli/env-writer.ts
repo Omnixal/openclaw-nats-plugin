@@ -7,6 +7,13 @@ export function generateApiKey(): string {
   return randomBytes(32).toString('hex');
 }
 
+export function getExistingApiKey(): string | null {
+  if (!existsSync(OPENCLAW_ENV)) return null;
+  const content = readFileSync(OPENCLAW_ENV, 'utf-8');
+  const match = content.match(/^NATS_PLUGIN_API_KEY=(.+)$/m);
+  return match?.[1]?.trim() || null;
+}
+
 export function mergeEnvContent(
   existingContent: string,
   variables: Record<string, string>,

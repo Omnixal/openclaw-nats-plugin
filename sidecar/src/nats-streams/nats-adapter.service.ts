@@ -55,7 +55,7 @@ export class NatsAdapterService extends BaseService implements OnModuleInit, OnM
   }
 
   isConnected(): boolean {
-    return this._connected && this.adapter !== null && this.adapter.isConnected();
+    return this._connected && this.adapter !== null;
   }
 
   async publish<T>(pattern: string, data: T, options?: PublishOptions): Promise<string | null> {

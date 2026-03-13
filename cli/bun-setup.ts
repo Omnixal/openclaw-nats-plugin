@@ -7,7 +7,7 @@ import {
 } from './paths';
 import { downloadNatsServer, NATS_VERSION } from './download-nats';
 import { writeNatsConfig } from './nats-config';
-import { generateApiKey, writeEnvVariables } from './env-writer';
+import { generateApiKey, getExistingApiKey, writeEnvVariables } from './env-writer';
 import {
   getServiceManager, generateSystemdUnit, generateLaunchdPlist,
   installSystemdUnit, installLaunchdPlist, startService, stopService,
@@ -46,8 +46,8 @@ export async function bunSetup(): Promise<void> {
   // 5. Generate NATS config
   writeNatsConfig();
 
-  // 6. Generate API key
-  const apiKey = generateApiKey();
+  // 6. Reuse existing API key or generate new one
+  const apiKey = getExistingApiKey() ?? generateApiKey();
 
   // 7. Write env variables (to OpenClaw .env for hooks, and sidecar .env for the service)
   const envVars: Record<string, string> = {
