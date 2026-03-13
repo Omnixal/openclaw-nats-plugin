@@ -1,6 +1,6 @@
 {
   "name": "@omnixal/openclaw-nats-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "NATS JetStream event-driven plugin for OpenClaw",
   "license": "MIT",
   "type": "module",
@@ -35,13 +35,13 @@
     "node": ">=22"
   },
   "openclaw": {
+    "extensions": [
+      "./plugins/nats-context-engine/index.ts"
+    ],
     "hooks": [
       "./hooks/gateway-startup",
       "./hooks/lifecycle-publisher",
       "./hooks/command-publisher"
-    ],
-    "plugins": [
-      "./plugins/nats-context-engine"
     ]
   },
   "dependencies": {}
