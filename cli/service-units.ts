@@ -1,7 +1,8 @@
-import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, openSync } from 'node:fs';
 import { execFileSync, spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { homedir, platform } from 'node:os';
+import { NATS_SERVER_BIN, NATS_CONF, PLUGIN_DIR, SIDECAR_DIR } from './paths';
 
 // --- Interfaces ---
 
@@ -144,19 +145,25 @@ function readPid(name: string): number | null {
   }
 }
 
-// Stored commands for direct-mode start
-const directCommands = new Map<string, { cmd: string; args: string[]; cwd: string; logFile: string }>();
+const NATS_SERVICE_NAME = 'openclaw-nats';
+const SIDECAR_SERVICE_NAME = 'openclaw-nats-sidecar';
 
-export function registerDirectCommand(name: string, cmd: string, args: string[], cwd: string, logFile: string): void {
-  directCommands.set(name, { cmd, args, cwd, logFile });
+function getDirectCommand(name: string): { cmd: string; args: string[]; cwd: string; logFile: string } {
+  const logsDir = join(PLUGIN_DIR, 'logs');
+  mkdirSync(logsDir, { recursive: true });
+
+  if (name === NATS_SERVICE_NAME) {
+    return { cmd: NATS_SERVER_BIN, args: ['-c', NATS_CONF], cwd: PLUGIN_DIR, logFile: join(logsDir, 'nats.log') };
+  }
+  if (name === SIDECAR_SERVICE_NAME) {
+    return { cmd: 'bun', args: ['run', join(SIDECAR_DIR, 'src/index.ts')], cwd: SIDECAR_DIR, logFile: join(logsDir, 'sidecar.log') };
+  }
+  throw new Error(`Unknown service "${name}"`);
 }
 
 function startDirect(name: string): void {
-  const entry = directCommands.get(name);
-  if (!entry) throw new Error(`No command registered for service "${name}". Call registerDirectCommand first.`);
-
-  const { cmd, args, cwd, logFile } = entry;
-  const out = require('node:fs').openSync(logFile, 'a');
+  const { cmd, args, cwd, logFile } = getDirectCommand(name);
+  const out = openSync(logFile, 'a');
   const child = spawn(cmd, args, {
     cwd,
     stdio: ['ignore', out, out],
