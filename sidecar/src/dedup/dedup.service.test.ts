@@ -38,7 +38,7 @@ describe('DedupService', () => {
     expect(repo.cleanup).toHaveBeenCalled();
   });
 
-  it('should call cleanup on init and start a periodic timer', async () => {
+  it('should start a periodic cleanup timer on init', async () => {
     const configGet = mock((key: string) => {
       if (key === 'dedup.ttlSeconds') return 120;
       if (key === 'dedup.cleanupIntervalMs') return 60_000;
@@ -48,10 +48,7 @@ describe('DedupService', () => {
 
     await service.onModuleInit();
 
-    // cleanup() should have been called once during init
-    expect(repo.cleanup).toHaveBeenCalledTimes(1);
-
-    // Timer should be set
+    // Timer should be set (cleanup runs on interval, not immediately)
     expect((service as any).cleanupTimer).toBeDefined();
   });
 

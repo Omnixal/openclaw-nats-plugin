@@ -14,8 +14,9 @@ export class DedupService extends BaseService implements OnModuleInit, OnModuleD
     this.ttlSeconds = this.config.get('dedup.ttlSeconds');
     const cleanupIntervalMs = this.config.get('dedup.cleanupIntervalMs');
 
-    await this.cleanup();
-    this.cleanupTimer = setInterval(() => this.cleanup(), cleanupIntervalMs);
+    this.cleanupTimer = setInterval(() => this.cleanup().catch((e) => {
+      this.logger.warn('Dedup cleanup failed', { error: String(e) });
+    }), cleanupIntervalMs);
   }
 
   async onModuleDestroy(): Promise<void> {
