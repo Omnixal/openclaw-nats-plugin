@@ -11,6 +11,7 @@ import { generateApiKey, writeEnvVariables } from './env-writer';
 import {
   getServiceManager, generateSystemdUnit, generateLaunchdPlist,
   installSystemdUnit, installLaunchdPlist, startService,
+  registerDirectCommand,
 } from './service-units';
 
 const NATS_SERVICE = 'openclaw-nats';
@@ -58,6 +59,7 @@ export async function bunSetup(): Promise<void> {
 
   // 8. Generate and install service units
   const manager = getServiceManager();
+  const logsDir = join(PLUGIN_DIR, 'logs');
 
   if (manager === 'systemd') {
     const natsUnit = generateSystemdUnit({
@@ -78,7 +80,7 @@ export async function bunSetup(): Promise<void> {
       after: `${NATS_SERVICE}.service`,
     });
     installSystemdUnit(SIDECAR_SERVICE, sidecarUnit);
-  } else {
+  } else if (manager === 'launchd') {
     const natsPlist = generateLaunchdPlist({
       label: 'com.openclaw.nats',
       program: NATS_SERVER_BIN,
@@ -94,6 +96,11 @@ export async function bunSetup(): Promise<void> {
       workingDirectory: SIDECAR_DIR,
     });
     installLaunchdPlist('com.openclaw.nats-sidecar', sidecarPlist);
+  } else {
+    // Direct mode — containers or systems without init
+    console.log('No init system detected, using direct process management');
+    registerDirectCommand(NATS_SERVICE, NATS_SERVER_BIN, ['-c', NATS_CONF], PLUGIN_DIR, join(logsDir, 'nats.log'));
+    registerDirectCommand(SIDECAR_SERVICE, 'bun', ['run', join(SIDECAR_DIR, 'src/index.ts')], SIDECAR_DIR, join(logsDir, 'sidecar.log'));
   }
 
   // 9. Start services

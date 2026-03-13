@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { homedir, platform } from 'node:os';
 
@@ -23,8 +23,27 @@ export interface LaunchdPlistOptions {
 
 // --- Detection ---
 
-export function getServiceManager(): 'systemd' | 'launchd' {
-  return platform() === 'darwin' ? 'launchd' : 'systemd';
+function isContainer(): boolean {
+  try {
+    return existsSync('/.dockerenv') || readFileSync('/proc/1/cgroup', 'utf-8').includes('docker');
+  } catch {
+    return false;
+  }
+}
+
+function hasSystemctl(): boolean {
+  try {
+    execFileSync('systemctl', ['--version'], { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getServiceManager(): 'systemd' | 'launchd' | 'direct' {
+  if (platform() === 'darwin') return 'launchd';
+  if (isContainer() || !hasSystemctl()) return 'direct';
+  return 'systemd';
 }
 
 // --- Generators ---
@@ -103,34 +122,103 @@ export function installLaunchdPlist(label: string, content: string): void {
   writeFileSync(filePath, content, 'utf-8');
 }
 
+// --- Direct mode (containers / no init system) ---
+
+function pidDir(): string {
+  const dir = join(homedir(), '.openclaw', 'nats-plugin', 'pids');
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function pidFile(name: string): string {
+  return join(pidDir(), `${name}.pid`);
+}
+
+function readPid(name: string): number | null {
+  try {
+    const pid = parseInt(readFileSync(pidFile(name), 'utf-8').trim(), 10);
+    process.kill(pid, 0); // check if alive
+    return pid;
+  } catch {
+    return null;
+  }
+}
+
+// Stored commands for direct-mode start
+const directCommands = new Map<string, { cmd: string; args: string[]; cwd: string; logFile: string }>();
+
+export function registerDirectCommand(name: string, cmd: string, args: string[], cwd: string, logFile: string): void {
+  directCommands.set(name, { cmd, args, cwd, logFile });
+}
+
+function startDirect(name: string): void {
+  const entry = directCommands.get(name);
+  if (!entry) throw new Error(`No command registered for service "${name}". Call registerDirectCommand first.`);
+
+  const { cmd, args, cwd, logFile } = entry;
+  const out = require('node:fs').openSync(logFile, 'a');
+  const child = spawn(cmd, args, {
+    cwd,
+    stdio: ['ignore', out, out],
+    detached: true,
+  });
+  child.unref();
+  if (child.pid) {
+    writeFileSync(pidFile(name), String(child.pid));
+  }
+}
+
+function stopDirect(name: string): void {
+  const pid = readPid(name);
+  if (pid) {
+    try { process.kill(pid, 'SIGTERM'); } catch { /* already dead */ }
+    rmSync(pidFile(name), { force: true });
+  }
+}
+
+function isRunningDirect(name: string): boolean {
+  return readPid(name) !== null;
+}
+
+// --- Public API ---
+
 export function startService(name: string): void {
-  if (getServiceManager() === 'systemd') {
+  const mgr = getServiceManager();
+  if (mgr === 'systemd') {
     execFileSync('systemctl', ['--user', 'enable', '--now', `${name}.service`]);
-  } else {
+  } else if (mgr === 'launchd') {
     const plistPath = join(launchdAgentsDir(), `${name}.plist`);
     execFileSync('launchctl', ['load', '-w', plistPath]);
+  } else {
+    startDirect(name);
   }
 }
 
 export function stopService(name: string): void {
-  if (getServiceManager() === 'systemd') {
+  const mgr = getServiceManager();
+  if (mgr === 'systemd') {
     execFileSync('systemctl', ['--user', 'stop', `${name}.service`]);
-  } else {
+  } else if (mgr === 'launchd') {
     const plistPath = join(launchdAgentsDir(), `${name}.plist`);
     execFileSync('launchctl', ['unload', plistPath]);
+  } else {
+    stopDirect(name);
   }
 }
 
 export function isServiceRunning(name: string): boolean {
   try {
-    if (getServiceManager() === 'systemd') {
+    const mgr = getServiceManager();
+    if (mgr === 'systemd') {
       const result = execFileSync('systemctl', ['--user', 'is-active', `${name}.service`], {
         encoding: 'utf-8',
       });
       return result.trim() === 'active';
-    } else {
+    } else if (mgr === 'launchd') {
       const result = execFileSync('launchctl', ['list', name], { encoding: 'utf-8' });
       return result.includes(name);
+    } else {
+      return isRunningDirect(name);
     }
   } catch {
     return false;
@@ -138,31 +226,19 @@ export function isServiceRunning(name: string): boolean {
 }
 
 export function removeServiceUnit(name: string): void {
-  if (getServiceManager() === 'systemd') {
-    try {
-      execFileSync('systemctl', ['--user', 'stop', `${name}.service`]);
-    } catch {
-      // service may not be running
-    }
-    try {
-      execFileSync('systemctl', ['--user', 'disable', `${name}.service`]);
-    } catch {
-      // service may not be enabled
-    }
+  const mgr = getServiceManager();
+  if (mgr === 'systemd') {
+    try { execFileSync('systemctl', ['--user', 'stop', `${name}.service`]); } catch { /* not running */ }
+    try { execFileSync('systemctl', ['--user', 'disable', `${name}.service`]); } catch { /* not enabled */ }
     const filePath = join(systemdUserDir(), `${name}.service`);
     rmSync(filePath, { force: true });
-    try {
-      execFileSync('systemctl', ['--user', 'daemon-reload']);
-    } catch {
-      // best effort
-    }
-  } else {
+    try { execFileSync('systemctl', ['--user', 'daemon-reload']); } catch { /* best effort */ }
+  } else if (mgr === 'launchd') {
     const plistPath = join(launchdAgentsDir(), `${name}.plist`);
-    try {
-      execFileSync('launchctl', ['unload', plistPath]);
-    } catch {
-      // may not be loaded
-    }
+    try { execFileSync('launchctl', ['unload', plistPath]); } catch { /* may not be loaded */ }
     rmSync(plistPath, { force: true });
+  } else {
+    stopDirect(name);
+    rmSync(pidFile(name), { force: true });
   }
 }

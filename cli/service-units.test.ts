@@ -37,8 +37,8 @@ describe('generateLaunchdPlist', () => {
 });
 
 describe('getServiceManager', () => {
-  test('returns systemd or launchd based on platform', () => {
+  test('returns systemd, launchd, or direct based on platform', () => {
     const manager = getServiceManager();
-    expect(['systemd', 'launchd']).toContain(manager);
+    expect(['systemd', 'launchd', 'direct']).toContain(manager);
   });
 });
