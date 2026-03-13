@@ -17,6 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org/
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -40,27 +45,9 @@ jobs:
           test -f dashboard/dist/index.html
           echo "Plugin structure OK"
 
-  publish:
-    needs: ci
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org/
-
-      - name: Install dashboard dependencies
-        run: cd dashboard && bun install --frozen-lockfile
-
       - name: Check if version changed
         id: version
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch'
         run: |
           LOCAL_VERSION=$(node -p "require('./package.json').version")
           NPM_VERSION=$(npm view @omnixal/openclaw-nats-plugin version 2>/dev/null || echo "0.0.0")
