@@ -13,14 +13,14 @@ describe('getNatsDownloadUrl', () => {
   test('returns github release url for linux amd64', () => {
     const url = getNatsDownloadUrl('2.10.24', 'linux', 'amd64');
     expect(url).toBe(
-      'https://github.com/nats-io/nats-server/releases/download/v2.10.24/nats-server-v2.10.24-linux-amd64.zip'
+      'https://github.com/nats-io/nats-server/releases/download/v2.10.24/nats-server-v2.10.24-linux-amd64.tar.gz'
     );
   });
 
   test('returns github release url for darwin arm64', () => {
     const url = getNatsDownloadUrl('2.10.24', 'darwin', 'arm64');
     expect(url).toBe(
-      'https://github.com/nats-io/nats-server/releases/download/v2.10.24/nats-server-v2.10.24-darwin-arm64.zip'
+      'https://github.com/nats-io/nats-server/releases/download/v2.10.24/nats-server-v2.10.24-darwin-arm64.tar.gz'
     );
   });
 });

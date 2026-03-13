@@ -1,5 +1,5 @@
 {
-  "id": "nats-plugin",
+  "id": "openclaw-nats-plugin",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

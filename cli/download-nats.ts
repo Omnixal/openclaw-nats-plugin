@@ -24,7 +24,7 @@ export function detectPlatform(): { os: string; arch: string } {
 }
 
 export function getNatsDownloadUrl(version: string, os: string, arch: string): string {
-  return `https://github.com/nats-io/nats-server/releases/download/v${version}/nats-server-v${version}-${os}-${arch}.zip`;
+  return `https://github.com/nats-io/nats-server/releases/download/v${version}/nats-server-v${version}-${os}-${arch}.tar.gz`;
 }
 
 export async function downloadNatsServer(): Promise<string> {
@@ -35,7 +35,7 @@ export async function downloadNatsServer(): Promise<string> {
 
   const { os, arch } = detectPlatform();
   const url = getNatsDownloadUrl(NATS_VERSION, os, arch);
-  const zipPath = join(BIN_DIR, 'nats-server.zip');
+  const archivePath = join(BIN_DIR, 'nats-server.tar.gz');
   const extractDir = join(BIN_DIR, 'nats-extract');
 
   mkdirSync(BIN_DIR, { recursive: true });
@@ -45,7 +45,7 @@ export async function downloadNatsServer(): Promise<string> {
   let lastError: Error | null = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      execFileSync('curl', ['-fsSL', '-o', zipPath, url], { stdio: 'pipe', timeout: 120_000 });
+      execFileSync('curl', ['-fsSL', '-o', archivePath, url], { stdio: 'pipe', timeout: 120_000 });
       lastError = null;
       break;
     } catch (e) {
@@ -67,14 +67,14 @@ export async function downloadNatsServer(): Promise<string> {
   try {
     execFileSync('curl', ['-fsSL', '-o', join(BIN_DIR, 'SHA256SUMS'), checksumUrl], { stdio: 'pipe', timeout: 30_000 });
 
-    const zipData = readFileSync(zipPath);
-    const actualHash = createHash('sha256').update(zipData).digest('hex');
+    const archiveData = readFileSync(archivePath);
+    const actualHash = createHash('sha256').update(archiveData).digest('hex');
     const checksumContent = readFileSync(join(BIN_DIR, 'SHA256SUMS'), 'utf-8');
-    const expectedLine = checksumContent.split('\n').find(line => line.includes(`nats-server-v${NATS_VERSION}-${os}-${arch}.zip`));
+    const expectedLine = checksumContent.split('\n').find(line => line.includes(`nats-server-v${NATS_VERSION}-${os}-${arch}.tar.gz`));
     if (expectedLine) {
       const expectedHash = expectedLine.split(/\s+/)[0];
       if (actualHash !== expectedHash) {
-        rmSync(zipPath);
+        rmSync(archivePath);
         throw new Error(`Checksum mismatch for nats-server download.\nExpected: ${expectedHash}\nActual:   ${actualHash}`);
       }
       console.log('Checksum verified');
@@ -91,7 +91,7 @@ export async function downloadNatsServer(): Promise<string> {
 
   try {
     mkdirSync(extractDir, { recursive: true });
-    execFileSync('unzip', ['-o', zipPath, '-d', extractDir], { stdio: 'pipe' });
+    execFileSync('tar', ['xzf', archivePath, '-C', extractDir], { stdio: 'pipe' });
 
     const innerDir = `nats-server-v${NATS_VERSION}-${os}-${arch}`;
     const extractedBin = join(extractDir, innerDir, 'nats-server');
@@ -99,7 +99,7 @@ export async function downloadNatsServer(): Promise<string> {
     renameSync(extractedBin, NATS_SERVER_BIN);
     chmodSync(NATS_SERVER_BIN, 0o755);
   } finally {
-    if (existsSync(zipPath)) rmSync(zipPath);
+    if (existsSync(archivePath)) rmSync(archivePath);
     if (existsSync(extractDir)) rmSync(extractDir, { recursive: true });
   }
 
