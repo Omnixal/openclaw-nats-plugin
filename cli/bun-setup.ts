@@ -10,7 +10,7 @@ import { writeNatsConfig } from './nats-config';
 import { generateApiKey, writeEnvVariables } from './env-writer';
 import {
   getServiceManager, generateSystemdUnit, generateLaunchdPlist,
-  installSystemdUnit, installLaunchdPlist, startService,
+  installSystemdUnit, installLaunchdPlist, startService, stopService,
 } from './service-units';
 
 const NATS_SERVICE = 'openclaw-nats';
@@ -49,12 +49,22 @@ export async function bunSetup(): Promise<void> {
   // 6. Generate API key
   const apiKey = generateApiKey();
 
-  // 7. Write env variables
-  writeEnvVariables({
+  // 7. Write env variables (to OpenClaw .env for hooks, and sidecar .env for the service)
+  const envVars: Record<string, string> = {
     NATS_SIDECAR_URL: 'http://127.0.0.1:3104',
     NATS_PLUGIN_API_KEY: apiKey,
     NATS_SERVERS: 'nats://127.0.0.1:4222',
-  });
+  };
+  writeEnvVariables(envVars);
+
+  // Write .env into sidecar dir so loadDotEnv picks it up
+  const sidecarEnv = [
+    `PORT=3104`,
+    `DB_PATH=${join(DATA_DIR, 'nats-sidecar.db')}`,
+    `NATS_SERVERS=nats://127.0.0.1:4222`,
+    `NATS_PLUGIN_API_KEY=${apiKey}`,
+  ].join('\n');
+  writeFileSync(join(SIDECAR_DIR, '.env'), sidecarEnv, 'utf-8');
 
   // 8. Generate and install service units
   const manager = getServiceManager();
@@ -99,7 +109,10 @@ export async function bunSetup(): Promise<void> {
     console.log('No init system detected, using direct process management');
   }
 
-  // 9. Start services
+  // 9. Stop old processes if running, then start
+  try { stopService(SIDECAR_SERVICE); } catch { /* not running */ }
+  try { stopService(NATS_SERVICE); } catch { /* not running */ }
+
   console.log('\nStarting services...');
   startService(NATS_SERVICE);
   await waitForPort(8222, 10_000);
