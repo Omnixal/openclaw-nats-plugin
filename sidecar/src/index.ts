@@ -14,6 +14,7 @@ const app = new OneBunApplication(AppModule, {
     loadDotEnv: true,
   },
   queue: {
+    enabled: true,
     adapter: JetStreamQueueAdapter as any,
     options: {
       servers: natsServers,
