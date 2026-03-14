@@ -5,15 +5,15 @@ import { createEnvelope } from './envelope';
 describe('PublisherService', () => {
   let service: PublisherService;
   let mockPublish: ReturnType<typeof mock>;
-  let mockNatsAdapter: any;
+  let mockQueueService: any;
 
   beforeEach(() => {
     mockPublish = mock(() => Promise.resolve('msg-id-1'));
-    mockNatsAdapter = {
+    mockQueueService = {
       publish: mockPublish,
       isConnected: () => true,
     };
-    service = new PublisherService(mockNatsAdapter);
+    service = new PublisherService(mockQueueService);
     (service as any).logger = {
       debug: mock(() => {}),
       info: mock(() => {}),
@@ -22,7 +22,7 @@ describe('PublisherService', () => {
     };
   });
 
-  it('should publish envelope via NatsAdapterService with correct subject', async () => {
+  it('should publish envelope via QueueService with correct subject', async () => {
     await service.publish('agent.events.test', { foo: 'bar' });
 
     expect(mockPublish).toHaveBeenCalledTimes(1);
@@ -74,15 +74,6 @@ describe('PublisherService', () => {
 
     const [, envelope] = mockPublish.mock.calls[0];
     expect(envelope.meta.priority).toBe(1);
-  });
-
-  it('should drop publish and warn when not connected', async () => {
-    mockNatsAdapter.isConnected = () => false;
-
-    await service.publish('agent.events.test', { foo: 'bar' });
-
-    expect(mockPublish).not.toHaveBeenCalled();
-    expect((service as any).logger.warn).toHaveBeenCalled();
   });
 });
 

@@ -3,7 +3,8 @@ import { HealthService } from './health.service';
 
 describe('HealthService', () => {
   let service: HealthService;
-  let nats: { isConnected: any };
+  let mockAdapter: { isConnected: any };
+  let queueService: any;
   let gateway: { isAlive: any };
   let pending: { countPending: any };
 
@@ -20,11 +21,12 @@ describe('HealthService', () => {
   };
 
   beforeEach(() => {
-    nats = { isConnected: mock(() => true) };
+    mockAdapter = { isConnected: mock(() => true) };
+    queueService = { getAdapter: mock(() => mockAdapter) };
     gateway = { isAlive: mock(() => true) };
     pending = { countPending: mock(() => Promise.resolve(0)) };
 
-    service = new HealthService(nats as any, gateway as any, pending as any);
+    service = new HealthService(queueService as any, gateway as any, pending as any);
     (service as any).config = mockConfig;
   });
 
@@ -38,7 +40,7 @@ describe('HealthService', () => {
   });
 
   it('should return degraded status when NATS disconnected', async () => {
-    nats.isConnected.mockReturnValue(false);
+    mockAdapter.isConnected.mockReturnValue(false);
 
     const status = await service.getStatus();
 
@@ -53,6 +55,14 @@ describe('HealthService', () => {
 
     expect(status.nats.connected).toBe(true);
     expect(status.gateway.connected).toBe(false);
+  });
+
+  it('should return false when adapter throws (not initialized)', async () => {
+    queueService.getAdapter.mockImplementation(() => { throw new Error('not initialized'); });
+
+    const status = await service.getStatus();
+
+    expect(status.nats.connected).toBe(false);
   });
 
   it('should return correct pendingCount', async () => {

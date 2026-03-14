@@ -1,5 +1,4 @@
-import { Service, BaseService } from '@onebun/core';
-import { NatsAdapterService } from '../nats-streams/nats-adapter.service';
+import { Service, BaseService, QueueService } from '@onebun/core';
 import { GatewayClientService } from '../gateway/gateway-client.service';
 import { PendingService } from '../pending/pending.service';
 
@@ -20,11 +19,19 @@ export class HealthService extends BaseService {
   private readonly startedAt = Date.now();
 
   constructor(
-    private nats: NatsAdapterService,
+    private queueService: QueueService,
     private gateway: GatewayClientService,
     private pending: PendingService,
   ) {
     super();
+  }
+
+  private isQueueConnected(): boolean {
+    try {
+      return this.queueService.getAdapter().isConnected();
+    } catch {
+      return false;
+    }
   }
 
   async getStatus(): Promise<HealthStatus> {
@@ -32,7 +39,7 @@ export class HealthService extends BaseService {
 
     return {
       nats: {
-        connected: this.nats.isConnected(),
+        connected: this.isQueueConnected(),
         url: this.config.get('nats.servers'),
       },
       gateway: {

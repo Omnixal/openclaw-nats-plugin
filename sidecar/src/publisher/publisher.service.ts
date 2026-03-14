@@ -1,20 +1,15 @@
-import { Service, BaseService } from '@onebun/core';
-import { NatsAdapterService } from '../nats-streams/nats-adapter.service';
+import { Service, BaseService, QueueService } from '@onebun/core';
 import { createEnvelope, type EnvelopeMeta } from './envelope';
 
 @Service()
 export class PublisherService extends BaseService {
-  constructor(private natsAdapter: NatsAdapterService) {
+  constructor(private queueService: QueueService) {
     super();
   }
 
   async publish(subject: string, payload: unknown, meta?: EnvelopeMeta): Promise<void> {
-    if (!this.natsAdapter.isConnected()) {
-      this.logger.warn(`NATS not connected, dropping publish to ${subject}`);
-      return;
-    }
     const envelope = createEnvelope(subject, payload, meta);
-    await this.natsAdapter.publish(subject, envelope);
+    await this.queueService.publish(subject, envelope);
     this.logger.debug(`Published to ${subject}`, { id: envelope.id });
   }
 }

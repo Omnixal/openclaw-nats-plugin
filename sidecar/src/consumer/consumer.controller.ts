@@ -1,17 +1,12 @@
-import { Service, BaseService, type OnModuleInit, type OnModuleDestroy } from '@onebun/core';
-import type { Message, Subscription } from '@onebun/core';
-import { NatsAdapterService } from '../nats-streams/nats-adapter.service';
+import { Controller, BaseController, Subscribe, OnQueueReady, type Message } from '@onebun/core';
 import { PipelineService } from '../pre-handlers/pipeline.service';
 import { GatewayClientService } from '../gateway/gateway-client.service';
 import { PendingService } from '../pending/pending.service';
 import type { NatsEventEnvelope } from '../publisher/envelope';
 
-@Service()
-export class ConsumerService extends BaseService implements OnModuleInit, OnModuleDestroy {
-  private subscription: Subscription | null = null;
-
+@Controller('/consumer')
+export class ConsumerController extends BaseController {
   constructor(
-    private natsAdapter: NatsAdapterService,
     private pipeline: PipelineService,
     private gatewayClient: GatewayClientService,
     private pendingService: PendingService,
@@ -19,26 +14,17 @@ export class ConsumerService extends BaseService implements OnModuleInit, OnModu
     super();
   }
 
-  async onModuleInit(): Promise<void> {
-    if (!this.natsAdapter.isConnected()) {
-      this.logger.warn('NATS not connected, consumer will not start');
-      return;
-    }
-
-    try {
-      const consumerName = this.config.get('consumer.name');
-      this.subscription = await this.natsAdapter.subscribe(
-        'agent.inbound.>',
-        (message: Message<unknown>) => this.handleInbound(message),
-        { ackMode: 'manual', group: consumerName },
-      );
-      this.logger.info(`Consuming from agent_inbound as ${consumerName}`);
-    } catch (err: any) {
-      this.logger.warn(`Failed to start consumer: ${err?.message}`);
-    }
+  @OnQueueReady()
+  onReady() {
+    const consumerName = this.config.get('consumer.name');
+    this.logger.info(`Queue connected, consuming as ${consumerName}`);
   }
 
-  private async handleInbound(message: Message<unknown>): Promise<void> {
+  @Subscribe('agent.inbound.>', {
+    ackMode: 'manual',
+    group: 'openclaw-main',
+  })
+  async handleInbound(message: Message<unknown>): Promise<void> {
     try {
       const envelope = this.extractEnvelope(message);
 
@@ -102,12 +88,5 @@ export class ConsumerService extends BaseService implements OnModuleInit, OnModu
 
   private formatMessage(envelope: NatsEventEnvelope): string {
     return `[NATS:${envelope.subject}] ${JSON.stringify(envelope.payload)}`;
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    if (this.subscription) {
-      await this.subscription.unsubscribe();
-      this.subscription = null;
-    }
   }
 }

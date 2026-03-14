@@ -1,8 +1,7 @@
 import { Module } from '@onebun/core';
-import { NatsAdapterService } from './nats-adapter.service';
+import { StreamSetupController } from './stream-setup.controller';
 
 @Module({
-  providers: [NatsAdapterService],
-  exports: [NatsAdapterService],
+  controllers: [StreamSetupController],
 })
 export class NatsStreamsModule {}

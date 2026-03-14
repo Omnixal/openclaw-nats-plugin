@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
-import { ConsumerService } from './consumer.service';
+import { ConsumerController } from './consumer.controller';
 import type { NatsEventEnvelope } from '../publisher/envelope';
 import type { Message } from '@onebun/core';
 
@@ -34,18 +34,13 @@ function makeMockMessage(envelope: NatsEventEnvelope): Message<NatsEventEnvelope
   };
 }
 
-describe('ConsumerService', () => {
-  let service: ConsumerService;
-  let mockNatsAdapter: any;
+describe('ConsumerController', () => {
+  let service: ConsumerController;
   let mockPipeline: any;
   let mockGatewayClient: any;
   let mockPendingService: any;
 
   beforeEach(() => {
-    mockNatsAdapter = {
-      subscribe: mock(() => Promise.resolve({ unsubscribe: mock(() => Promise.resolve()) })),
-      isConnected: mock(() => true),
-    };
     mockPipeline = {
       process: mock(() =>
         Promise.resolve({ result: 'pass' as const, ctx: { enrichments: { priority: 5 } } }),
@@ -59,7 +54,7 @@ describe('ConsumerService', () => {
       addPending: mock(() => Promise.resolve()),
     };
 
-    service = new ConsumerService(mockNatsAdapter, mockPipeline, mockGatewayClient, mockPendingService);
+    service = new ConsumerController(mockPipeline, mockGatewayClient, mockPendingService);
     (service as any).logger = {
       debug: mock(() => {}),
       info: mock(() => {}),
@@ -246,14 +241,5 @@ describe('ConsumerService', () => {
 
     expect(msg.ack).toHaveBeenCalledTimes(1);
     expect(mockGatewayClient.inject).toHaveBeenCalledTimes(1);
-  });
-
-  it('should not start consumer when NATS is not connected', async () => {
-    mockNatsAdapter.isConnected = mock(() => false);
-
-    await service.onModuleInit();
-
-    expect(mockNatsAdapter.subscribe).not.toHaveBeenCalled();
-    expect((service as any).logger.warn).toHaveBeenCalled();
   });
 });
