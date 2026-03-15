@@ -14,15 +14,16 @@
     "db:studio": "bunx onebun-drizzle studio"
   },
   "dependencies": {
-    "@onebun/core": "^0.2.3",
-    "@onebun/drizzle": "^0.2.0",
-    "@onebun/envs": "^0.2.0",
-    "@onebun/logger": "^0.2.0",
-    "@onebun/nats": "^0.2.2",
+    "@onebun/core": "^0.2.11",
+    "@onebun/drizzle": "^0.2.3",
+    "@onebun/envs": "^0.2.1",
+    "@onebun/logger": "^0.2.1",
+    "@onebun/nats": "^0.2.4",
     "arktype": "^2.2.0",
     "ulid": "^2.3.0"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "testcontainers": "^11.12.0"
   }
 }

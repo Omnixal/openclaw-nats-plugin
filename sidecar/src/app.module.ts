@@ -1,6 +1,5 @@
 import { Module } from '@onebun/core';
 import { DrizzleModule, DatabaseType } from '@onebun/drizzle';
-import { NatsStreamsModule } from './nats-streams/nats-streams.module';
 import { DedupModule } from './dedup/dedup.module';
 import { PublisherModule } from './publisher/publisher.module';
 import { PreHandlersModule } from './pre-handlers/pre-handlers.module';
@@ -20,7 +19,6 @@ import { HealthModule } from './health/health.module';
       },
       migrationsFolder: './src/db/migrations',
     }),
-    NatsStreamsModule,
     DedupModule,
     PublisherModule,
     PreHandlersModule,

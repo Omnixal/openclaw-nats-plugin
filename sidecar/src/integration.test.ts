@@ -1,129 +1,161 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { resolve } from 'node:path';
+import { createNatsContainer, type TestContainer, type CompiledTestingModule } from '@onebun/core';
 
-const TEST_PORT = 3114;
 const TEST_DB = `/tmp/nats-sidecar-test-${Date.now()}.db`;
-const BASE_URL = `http://localhost:${TEST_PORT}`;
 const API_KEY = 'test-nats-plugin-key';
+const SEVEN_DAYS_NS = 7 * 24 * 60 * 60 * 1e9;
 
-let proc: ReturnType<typeof Bun.spawn>;
+let nats: TestContainer;
+let module: CompiledTestingModule;
 
 describe('nats-sidecar integration', () => {
   beforeAll(async () => {
-    proc = Bun.spawn(['bun', 'run', 'src/index.ts'], {
-      cwd: resolve(import.meta.dir, '..'),
-      env: {
-        ...process.env,
-        PORT: String(TEST_PORT),
-        DB_PATH: TEST_DB,
-        NATS_PLUGIN_API_KEY: API_KEY,
-        NATS_SERVERS: 'nats://localhost:14222', // non-existent, will fail gracefully
-        NATS_MAX_RECONNECT_ATTEMPTS: '0',
-        OPENCLAW_WS_URL: '', // disable gateway client
-        NODE_ENV: 'test',
-      },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
+    // 1. Start NATS with JetStream
+    nats = await createNatsContainer({ enableJetStream: true });
 
-    // Wait for server ready by polling an authenticated endpoint
-    let ready = false;
-    for (let i = 0; i < 50; i++) {
-      try {
-        const res = await fetch(`${BASE_URL}/api/pending/test-session`, {
-          headers: { 'Authorization': `Bearer ${API_KEY}` },
-        });
-        if (res.ok) {
-          ready = true;
-          break;
-        }
-      } catch {
-        // Server not ready yet
-      }
-      await new Promise((r) => setTimeout(r, 200));
-    }
+    // 2. Set env vars BEFORE importing AppModule (decorator reads process.env at import time)
+    process.env.DB_PATH = TEST_DB;
+    process.env.NATS_PLUGIN_API_KEY = API_KEY;
+    process.env.NATS_SERVERS = nats.url;
+    process.env.NATS_MAX_RECONNECT_ATTEMPTS = '3';
+    process.env.OPENCLAW_WS_URL = 'ws://127.0.0.1:19999';
+    process.env.NODE_ENV = 'test';
 
-    if (!ready) {
-      const errText = proc.stderr && typeof proc.stderr !== 'number'
-        ? await new Response(proc.stderr).text().catch(() => '(unreadable)')
-        : '(no stderr)';
-      throw new Error(`Server failed to start within 10s. stderr:\n${errText}`);
-    }
-  });
+    // 3. Dynamic import so @Module decorator sees the env vars above
+    const { TestingModule } = await import('@onebun/core');
+    const { JetStreamQueueAdapter } = await import('@onebun/nats');
+    const { AppModule } = await import('./app.module');
+    const { envSchema } = await import('./config');
+
+    // 4. Create and start via TestingModule
+    module = await TestingModule
+      .create({ imports: [AppModule] })
+      .setOptions({
+        development: true,
+        envSchema,
+        envOptions: { loadDotEnv: false },
+        queue: {
+          adapter: JetStreamQueueAdapter as any,
+          options: {
+            servers: nats.url,
+            streamDefaults: {
+              storage: 'file',
+              replicas: 1,
+            },
+            streams: [
+              {
+                name: 'agent_inbound',
+                subjects: ['agent.inbound.>'],
+                retention: 'workqueue',
+              },
+              {
+                name: 'agent_events',
+                subjects: ['agent.events.>'],
+                retention: 'limits',
+                maxAge: SEVEN_DAYS_NS,
+              },
+              {
+                name: 'agent_dlq',
+                subjects: ['agent.dlq.>'],
+                retention: 'limits',
+                maxAge: SEVEN_DAYS_NS,
+              },
+            ],
+            consumerConfig: {
+              ackWait: 30_000 * 1_000_000,
+              maxDeliver: 3,
+            },
+          },
+        },
+      })
+      .compile();
+  }, 60_000);
 
   afterAll(async () => {
-    proc?.kill();
-    await new Promise((r) => setTimeout(r, 200));
+    await module?.close();
+    await nats?.stop();
     try {
       const { unlinkSync } = await import('node:fs');
       unlinkSync(TEST_DB);
     } catch {}
   });
 
+  // --- Health ---
+
+  it('GET /api/health returns status with NATS connected', async () => {
+    const res = await module.inject('GET', '/api/health');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    const data = body.result ?? body;
+
+    expect(data.nats.connected).toBe(true);
+    expect(data.nats.url).toBe(nats.url);
+  });
+
   // --- Auth tests ---
 
   it('POST /api/publish requires auth', async () => {
-    const res = await fetch(`${BASE_URL}/api/publish`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subject: 'test', payload: {} }),
+    const res = await module.inject('POST', '/api/publish', {
+      body: { subject: 'test', payload: {} },
     });
     expect(res.status).toBe(401);
   });
 
   it('GET /api/pending/:sessionKey requires auth', async () => {
-    const res = await fetch(`${BASE_URL}/api/pending/test-session`);
+    const res = await module.inject('GET', '/api/pending/test-session');
     expect(res.status).toBe(401);
   });
 
   it('POST /api/pending/mark-delivered requires auth', async () => {
-    const res = await fetch(`${BASE_URL}/api/pending/mark-delivered`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: [] }),
+    const res = await module.inject('POST', '/api/pending/mark-delivered', {
+      body: { ids: [] },
     });
     expect(res.status).toBe(401);
   });
 
-  // --- Publish endpoint (NATS unavailable) ---
+  // --- Publish endpoint (NATS connected) ---
 
-  it('POST /api/publish with valid auth returns non-401 (NATS down)', async () => {
-    const res = await fetch(`${BASE_URL}/api/publish`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-      },
-      body: JSON.stringify({ subject: 'agent.events.test', payload: { test: true } }),
+  it('POST /api/publish with valid auth and valid subject succeeds', async () => {
+    const res = await module.inject('POST', '/api/publish', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+      body: { subject: 'agent.events.test', payload: { test: true } },
     });
-    // Auth passes but NATS is not connected — expect 500
-    expect(res.status).not.toBe(401);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    const data = body.result ?? body;
+    expect(data.published).toBe(true);
   });
 
-  // --- Pending endpoints (SQLite-backed, work without NATS) ---
+  it('POST /api/publish rejects non agent.events.* subjects', async () => {
+    const res = await module.inject('POST', '/api/publish', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+      body: { subject: 'other.topic', payload: {} },
+    });
+    expect(res.status).not.toBe(401);
+    const body = (await res.json()) as any;
+    expect(body.success).toBe(false);
+  });
+
+  // --- Pending endpoints (SQLite-backed) ---
 
   it('GET /api/pending/:sessionKey with auth returns empty array', async () => {
-    const res = await fetch(`${BASE_URL}/api/pending/test-session`, {
+    const res = await module.inject('GET', '/api/pending/test-session', {
       headers: { 'Authorization': `Bearer ${API_KEY}` },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
-    const data = (body as any).result ?? (body as any).data ?? body;
+    const body = (await res.json()) as any;
+    const data = body.result ?? body.data ?? body;
     expect(data).toEqual([]);
   });
 
   it('POST /api/pending/mark-delivered with auth and empty ids', async () => {
-    const res = await fetch(`${BASE_URL}/api/pending/mark-delivered`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-      },
-      body: JSON.stringify({ ids: [] }),
+    const res = await module.inject('POST', '/api/pending/mark-delivered', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+      body: { ids: [] },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
-    const data = (body as any).result ?? (body as any).data ?? body;
+    const body = (await res.json()) as any;
+    const data = body.result ?? body.data ?? body;
     expect(data.marked).toBe(0);
   });
 });
