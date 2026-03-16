@@ -49,12 +49,12 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
         this.scheduleReconnect();
       };
 
-      this.ws.onerror = () => {
-        this.logger.warn('Gateway WebSocket error');
+      this.ws.onerror = (event) => {
+        this.logger.warn('Gateway WebSocket error', event);
         this.connected = false;
       };
-    } catch {
-      this.logger.warn('Failed to connect to Gateway WebSocket');
+    } catch (err) {
+      this.logger.warn('Failed to connect to Gateway WebSocket', err);
       this.scheduleReconnect();
     }
   }
