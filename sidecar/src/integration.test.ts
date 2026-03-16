@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { createNatsContainer, type TestContainer, type CompiledTestingModule } from '@onebun/core';
+import { createNatsContainer, type TestContainer, type CompiledTestingModule } from '@onebun/core/testing';
 
 const TEST_DB = `/tmp/nats-sidecar-test-${Date.now()}.db`;
 const API_KEY = 'test-nats-plugin-key';
@@ -22,7 +22,7 @@ describe('nats-sidecar integration', () => {
     process.env.NODE_ENV = 'test';
 
     // 3. Dynamic import so @Module decorator sees the env vars above
-    const { TestingModule } = await import('@onebun/core');
+    const { TestingModule } = await import('@onebun/core/testing');
     const { JetStreamQueueAdapter } = await import('@onebun/nats');
     const { AppModule } = await import('./app.module');
     const { envSchema } = await import('./config');
