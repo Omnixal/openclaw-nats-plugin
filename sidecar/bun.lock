@@ -5,11 +5,11 @@
     "": {
       "name": "@ai-entrepreneur/nats-sidecar",
       "dependencies": {
-        "@onebun/core": "^0.2.11",
-        "@onebun/drizzle": "^0.2.3",
+        "@onebun/core": "^0.2.12",
+        "@onebun/drizzle": "^0.2.4",
         "@onebun/envs": "^0.2.1",
         "@onebun/logger": "^0.2.1",
-        "@onebun/nats": "^0.2.4",
+        "@onebun/nats": "^0.2.5",
         "arktype": "^2.2.0",
         "ulid": "^2.3.0",
       },
@@ -104,17 +104,17 @@
 
     "@nats-io/transport-node": ["@nats-io/transport-node@3.3.1", "", { "dependencies": { "@nats-io/nats-core": "3.3.1", "@nats-io/nkeys": "2.0.3", "@nats-io/nuid": "2.0.3" } }, "sha512-GBvY0VcvyQEILgy5bjpqU1GpDYmSF06bW59I7cewZuNGS9u3AoV/gf+a+3ep45T/Z+UC661atq/b7x+QV12w+Q=="],
 
-    "@onebun/core": ["@onebun/core@0.2.11", "", { "dependencies": { "@onebun/envs": "^0.2.1", "@onebun/logger": "^0.2.1", "@onebun/metrics": "^0.2.1", "@onebun/requests": "^0.2.1", "@onebun/trace": "^0.2.1", "arktype": "^2.0.0", "effect": "^3.13.10" }, "peerDependencies": { "testcontainers": ">=10.0.0" }, "optionalPeers": ["testcontainers"] }, "sha512-QTJbTj+CePWvr0+CH/v0rs/K5hlNLw37UQRWEj5ar7C1Xwahifxq6Wzd4EM+HDpvLNgE4/tp6f05jd4NBdHQUQ=="],
+    "@onebun/core": ["@onebun/core@0.2.12", "", { "dependencies": { "@onebun/envs": "^0.2.1", "@onebun/logger": "^0.2.1", "@onebun/metrics": "^0.2.2", "@onebun/requests": "^0.2.1", "@onebun/trace": "^0.2.1", "arktype": "^2.0.0", "effect": "^3.13.10" }, "peerDependencies": { "testcontainers": ">=10.0.0" }, "optionalPeers": ["testcontainers"] }, "sha512-Vy3A0pmp/eZjwgEgdZApMKHPJ697LvQETmqEWyUqUr01zcfy0HYI9KcRBRIHlGoajAYghwH+D9w4N3Ip6pGCcA=="],
 
-    "@onebun/drizzle": ["@onebun/drizzle@0.2.3", "", { "dependencies": { "@onebun/envs": "^0.2.1", "@onebun/logger": "^0.2.1", "arktype": "^2.0.0", "drizzle-arktype": "^0.1.3", "drizzle-kit": "^0.31.6", "drizzle-orm": "^0.44.7", "effect": "^3.13.10" }, "peerDependencies": { "@onebun/core": ">=0.2.0" }, "bin": { "onebun-drizzle": "bin/drizzle-kit.ts" } }, "sha512-8Ombnf3AZa6DGdPR3z+Kj5L5h36Jx+88dFY/q8zgZUYkEirTLGiT3wzYymZWwZu7aR289sAGOacVaD8/lmv0XQ=="],
+    "@onebun/drizzle": ["@onebun/drizzle@0.2.4", "", { "dependencies": { "@onebun/envs": "^0.2.1", "@onebun/logger": "^0.2.1", "arktype": "^2.0.0", "drizzle-arktype": "^0.1.3", "drizzle-kit": "^0.31.6", "drizzle-orm": "^0.44.7", "effect": "^3.13.10" }, "peerDependencies": { "@onebun/core": ">=0.2.0" }, "bin": { "onebun-drizzle": "bin/drizzle-kit.ts" } }, "sha512-LbkW2hU9pTKZU/rlrHNdwhI4jYoMl+v22c3G2zc0L0aW77nW7ZCfp5YqOJYufWJbfOTSWEnNOVZQXMueYhBxsA=="],
 
     "@onebun/envs": ["@onebun/envs@0.2.1", "", { "dependencies": { "effect": "^3.13.10" } }, "sha512-kiXJcA4ct194+aNJK8zkrVuaAgPPVpTkcW8tJU9XN9KOh8003lENOOuUZUcieMCxdMWUgo08lp9UgiwawLan+Q=="],
 
     "@onebun/logger": ["@onebun/logger@0.2.1", "", { "dependencies": { "effect": "^3.13.10" } }, "sha512-u/zirsUSGBfbjVv274qqIHG5jzPBWY3vl8HzM6hjzsMCCpExgstkQiP1eP9rF1isIzhetwmyfBpYYc9eYsbrrw=="],
 
-    "@onebun/metrics": ["@onebun/metrics@0.2.1", "", { "dependencies": { "@onebun/requests": "^0.2.1", "effect": "^3.13.10", "prom-client": "^15.1.3" } }, "sha512-TTcWTSJc2WYAgs7gdSzV8/HyDDxo5HsihZo1jkP/jojLAFR+qiNCnbwj7H2BkdqwAJcV+jZ1s8h9yEQDVJlFqA=="],
+    "@onebun/metrics": ["@onebun/metrics@0.2.2", "", { "dependencies": { "@onebun/requests": "^0.2.1", "effect": "^3.13.10", "prom-client": "^15.1.3" } }, "sha512-8oN74MZeaWyyPHi5H3pZyY0V3cM8ORupHe2fR0gGYsZqHyM4S9UJStV29rNQlvhyesHzL7p5x3Ux6n/SRYBszw=="],
 
-    "@onebun/nats": ["@onebun/nats@0.2.4", "", { "dependencies": { "@nats-io/jetstream": "^3.0.0-31", "@nats-io/transport-node": "^3.0.0-31", "effect": "^3.13.10" }, "peerDependencies": { "@onebun/core": ">=0.2.0" } }, "sha512-eLsP7ysD1V/8Gb5W6B/bnx7T4A/4Fi0Q3MpEgpVAxzvmaB65FA6Law2jsaMFa/iYd4fvN0+4F9uumiP/neI1oQ=="],
+    "@onebun/nats": ["@onebun/nats@0.2.5", "", { "dependencies": { "@nats-io/jetstream": "^3.0.0-31", "@nats-io/transport-node": "^3.0.0-31", "effect": "^3.13.10" }, "peerDependencies": { "@onebun/core": ">=0.2.0" } }, "sha512-J+p9UPJGqBLeeBY6n50E6at1lyA+xmg+wzqw1HwN516t+XHzctmnrB8S5PmX/3sQI18fktFcJgAyWJfQA1piDA=="],
 
     "@onebun/requests": ["@onebun/requests@0.2.1", "", { "dependencies": { "effect": "^3.13.10" } }, "sha512-Wit+o3zRiuZOM7O0nAJ0rpFVLgkypJ1UR5uuHi0IZuiCvGmxv+Vus2+QqHoCL141L7SPO1Xlywt8dVqqu4NP7w=="],
 

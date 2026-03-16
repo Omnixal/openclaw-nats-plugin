@@ -18,12 +18,16 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
   private reconnectAttempt = 0;
   private reconnectTimer: Timer | null = null;
   private requestId = 0;
-  private wsUrl!: string;
-  private token!: string;
+  private readonly wsUrl: string;
+  private readonly token: string;
 
-  async onModuleInit(): Promise<void> {
+  constructor() {
+    super();
     this.wsUrl = this.config.get('gateway.wsUrl');
     this.token = this.config.get('gateway.token');
+  }
+
+  async onModuleInit(): Promise<void> {
     if (this.wsUrl) {
       this.connect();
     }

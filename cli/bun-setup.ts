@@ -54,6 +54,7 @@ export async function bunSetup(): Promise<void> {
     NATS_SIDECAR_URL: 'http://127.0.0.1:3104',
     NATS_PLUGIN_API_KEY: apiKey,
     NATS_SERVERS: 'nats://127.0.0.1:4222',
+    OPENCLAW_WS_URL: 'ws://127.0.0.1:18789',
   };
   writeEnvVariables(envVars);
 
