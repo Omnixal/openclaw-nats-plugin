@@ -201,19 +201,22 @@ describe('GatewayClientService', () => {
     expect(sent.params.minProtocol).toBe(3);
   });
 
-  it('handleMessage sets connected=true only on hello-ok response', () => {
+  it('handleMessage sets connected=true on hello-ok response', () => {
     (service as any).connected = false;
     (service as any).connectSent = true;
 
-    // Regular ok response — should NOT set connected
-    (service as any).handleMessage(JSON.stringify({ type: 'res', ok: true, id: 'connect-1' }));
-    expect((service as any).connected).toBe(false);
-
-    // hello-ok response — should set connected
     (service as any).handleMessage(
       JSON.stringify({ type: 'res', ok: true, id: 'connect-1', payload: { type: 'hello-ok' } }),
     );
     expect((service as any).connected).toBe(true);
+  });
+
+  it('handleMessage does NOT set connected on plain ok response (non hello-ok)', () => {
+    (service as any).connected = false;
+    (service as any).connectSent = true;
+
+    (service as any).handleMessage(JSON.stringify({ type: 'res', ok: true, id: 'rpc-1' }));
+    expect((service as any).connected).toBe(false);
   });
 
   it('handleMessage logs warning on error response', () => {

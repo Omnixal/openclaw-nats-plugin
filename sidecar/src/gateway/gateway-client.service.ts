@@ -25,8 +25,10 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
   async onModuleInit(): Promise<void> {
     this.wsUrl = this.config.get('gateway.wsUrl');
     this.token = this.config.get('gateway.token');
-    if (this.wsUrl) {
+    if (this.wsUrl && this.token) {
       this.connect();
+    } else {
+      this.logger.warn('Gateway WebSocket not configured — skipping connection (need wsUrl + deviceToken)');
     }
   }
 
@@ -37,7 +39,7 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
 
       this.ws.onopen = () => {
         this.reconnectAttempt = 0;
-        this.logger.info('Gateway WebSocket opened, waiting for challenge');
+        this.logger.info('Gateway WebSocket opened, waiting for connect.challenge');
       };
 
       this.ws.onmessage = (event) => {
@@ -83,14 +85,18 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
       return;
     }
 
-    // Successful connect response (hello-ok)
+    // Successful connect response — must be hello-ok
     if (frame.type === 'res' && frame.ok === true) {
-      if (frame.payload?.type === 'hello-ok') {
-        this.connected = true;
-        this.logger.info('OpenClaw handshake complete — connected');
+      const payload = frame.payload;
+      if (payload?.type === 'hello-ok') {
+        if (!this.connected) {
+          this.connected = true;
+          this.logger.info('OpenClaw handshake complete — connected');
+        }
         return;
       }
-      // Regular RPC response — ignore for now
+      // Regular RPC ok response (e.g. for inject calls)
+      this.logger.debug('Received RPC ok response', { id: frame.id });
       return;
     }
 

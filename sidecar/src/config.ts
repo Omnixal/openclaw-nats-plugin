@@ -17,7 +17,7 @@ export const envSchema = {
   },
   gateway: {
     wsUrl: Env.string({ default: 'ws://localhost:18789', env: 'OPENCLAW_WS_URL' }),
-    token: Env.string({ default: '', env: 'OPENCLAW_GATEWAY_TOKEN' }),
+    token: Env.string({ default: '', env: 'OPENCLAW_DEVICE_TOKEN' }),
   },
   consumer: {
     name: Env.string({ default: 'openclaw-main', env: 'NATS_CONSUMER_NAME' }),
