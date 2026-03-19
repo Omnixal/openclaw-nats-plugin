@@ -119,7 +119,8 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
         minProtocol: 3,
         maxProtocol: 3,
         client: {
-          id: 'nats-sidecar',
+          id: 'gateway-client',
+          displayName: 'nats-sidecar',
           version: '1.0.0',
           platform: 'linux',
           mode: 'backend',

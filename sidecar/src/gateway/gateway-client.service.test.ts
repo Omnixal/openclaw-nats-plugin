@@ -171,7 +171,7 @@ describe('GatewayClientService', () => {
     expect(sent.method).toBe('connect');
     expect(sent.params.minProtocol).toBe(3);
     expect(sent.params.maxProtocol).toBe(3);
-    expect(sent.params.client.id).toBe('nats-sidecar');
+    expect(sent.params.client.id).toBe('gateway-client');
     expect(sent.params.auth).toEqual({ token: 'test-token' });
   });
 
