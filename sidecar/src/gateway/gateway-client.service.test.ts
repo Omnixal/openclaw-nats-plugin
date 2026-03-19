@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, mock, jest } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 import { GatewayClientService } from './gateway-client.service';
 
 /* ---------- helpers ---------- */
@@ -19,7 +19,6 @@ function createMockWs() {
 
 function createService(): GatewayClientService {
   const svc = new GatewayClientService() as any;
-  // Provide minimal stubs for BaseService dependencies
   svc.config = {
     get: mock((key: string) => {
       if (key === 'gateway.wsUrl') return 'ws://localhost:18789';
@@ -53,7 +52,7 @@ describe('GatewayClientService', () => {
     expect(service.isAlive()).toBe(false);
   });
 
-  it('isAlive() returns true after successful connect + response', () => {
+  it('isAlive() returns true after successful handshake', () => {
     const ws = createMockWs();
     (service as any).ws = ws;
     (service as any).connected = true;
@@ -78,7 +77,7 @@ describe('GatewayClientService', () => {
     ).rejects.toThrow('Gateway WebSocket not connected');
   });
 
-  it('inject() sends correct frame with send method and idempotencyKey', async () => {
+  it('inject() sends correct frame with rpc- prefixed id and idempotencyKey', async () => {
     const ws = createMockWs();
     (service as any).ws = ws;
     (service as any).connected = true;
@@ -94,7 +93,7 @@ describe('GatewayClientService', () => {
     const sent = JSON.parse(ws.send.mock.calls[0][0]);
     expect(sent).toEqual({
       type: 'req',
-      id: 11,
+      id: 'rpc-11',
       method: 'send',
       params: {
         target: 'main',
@@ -117,10 +116,11 @@ describe('GatewayClientService', () => {
     expect(sent.params.idempotencyKey).toBe('6');
   });
 
-  it('onModuleDestroy() closes WebSocket and clears timers', async () => {
+  it('onModuleDestroy() closes WebSocket and clears state', async () => {
     const ws = createMockWs();
     (service as any).ws = ws;
     (service as any).connected = true;
+    (service as any).connectSent = true;
     (service as any).reconnectTimer = setTimeout(() => {}, 99999);
 
     await (service as any).onModuleDestroy();
@@ -128,12 +128,11 @@ describe('GatewayClientService', () => {
     expect(ws.close).toHaveBeenCalledTimes(1);
     expect((service as any).ws).toBeNull();
     expect((service as any).connected).toBe(false);
+    expect((service as any).connectSent).toBe(false);
     expect((service as any).reconnectTimer).toBeNull();
   });
 
   it('scheduleReconnect uses exponential backoff', () => {
-    // We cannot easily observe setTimeout delay, but we can verify
-    // reconnectAttempt increments and timers are set.
     (service as any).wsUrl = 'ws://localhost:18789';
 
     (service as any).reconnectAttempt = 0;
@@ -141,7 +140,6 @@ describe('GatewayClientService', () => {
     expect((service as any).reconnectAttempt).toBe(1);
     expect((service as any).reconnectTimer).not.toBeNull();
 
-    // Clear for next call
     clearTimeout((service as any).reconnectTimer);
     (service as any).reconnectTimer = null;
 
@@ -152,43 +150,94 @@ describe('GatewayClientService', () => {
     // Duplicate call while timer exists should be a no-op
     const timer = (service as any).reconnectTimer;
     (service as any).scheduleReconnect();
-    expect((service as any).reconnectTimer).toBe(timer); // same timer, not replaced
-    expect((service as any).reconnectAttempt).toBe(2); // not incremented again
+    expect((service as any).reconnectTimer).toBe(timer);
+    expect((service as any).reconnectAttempt).toBe(2);
   });
 
-  it('sendConnect sends correct connect frame', () => {
+  // --- Handshake protocol ---
+
+  it('sendConnectFrame sends full protocol handshake with auth token', () => {
     const ws = createMockWs();
     (service as any).ws = ws;
+    (service as any).token = 'test-token';
     (service as any).requestId = 0;
 
-    (service as any).sendConnect();
+    (service as any).sendConnectFrame();
 
     expect(ws.send).toHaveBeenCalledTimes(1);
     const sent = JSON.parse(ws.send.mock.calls[0][0]);
-    expect(sent).toEqual({
-      type: 'req',
-      id: 1,
-      method: 'connect',
-      params: {},
-    });
+    expect(sent.type).toBe('req');
+    expect(sent.id).toBe('connect-1');
+    expect(sent.method).toBe('connect');
+    expect(sent.params.minProtocol).toBe(3);
+    expect(sent.params.maxProtocol).toBe(3);
+    expect(sent.params.client.id).toBe('nats-sidecar');
+    expect(sent.params.auth).toEqual({ token: 'test-token' });
   });
 
-  it('onmessage handler sets connected=true on ok response', () => {
+  it('sendConnectFrame is idempotent (only sends once)', () => {
     const ws = createMockWs();
     (service as any).ws = ws;
-    (service as any).connected = false;
+    (service as any).token = 'test-token';
 
-    // Simulate the onmessage handler logic
-    (service as any).handleMessage({ data: JSON.stringify({ type: 'res', ok: true, id: 1 }) });
+    (service as any).sendConnectFrame();
+    (service as any).sendConnectFrame();
+
+    expect(ws.send).toHaveBeenCalledTimes(1);
+    expect((service as any).connectSent).toBe(true);
+  });
+
+  it('handleMessage sends connect frame on connect.challenge event', () => {
+    const ws = createMockWs();
+    (service as any).ws = ws;
+    (service as any).token = 'test-token';
+    (service as any).connectSent = false;
+
+    (service as any).handleMessage(JSON.stringify({ type: 'event', event: 'connect.challenge' }));
+
+    expect(ws.send).toHaveBeenCalledTimes(1);
+    const sent = JSON.parse(ws.send.mock.calls[0][0]);
+    expect(sent.method).toBe('connect');
+    expect(sent.params.minProtocol).toBe(3);
+  });
+
+  it('handleMessage sets connected=true only on hello-ok response', () => {
+    (service as any).connected = false;
+    (service as any).connectSent = true;
+
+    // Regular ok response — should NOT set connected
+    (service as any).handleMessage(JSON.stringify({ type: 'res', ok: true, id: 'connect-1' }));
+    expect((service as any).connected).toBe(false);
+
+    // hello-ok response — should set connected
+    (service as any).handleMessage(
+      JSON.stringify({ type: 'res', ok: true, id: 'connect-1', payload: { type: 'hello-ok' } }),
+    );
     expect((service as any).connected).toBe(true);
   });
 
-  it('onmessage handler ignores non-ok responses', () => {
+  it('handleMessage logs warning on error response', () => {
+    (service as any).connected = false;
+    (service as any).connectSent = true;
+
+    (service as any).handleMessage(
+      JSON.stringify({ type: 'res', ok: false, id: 'rpc-1', error: { code: 401, message: 'Unauthorized' } }),
+    );
+
+    expect((service as any).connected).toBe(false);
+    expect((service as any).logger.warn).toHaveBeenCalled();
+  });
+
+  it('handleMessage sends connect on any event if connect not yet sent', () => {
     const ws = createMockWs();
     (service as any).ws = ws;
-    (service as any).connected = false;
+    (service as any).token = 'test-token';
+    (service as any).connectSent = false;
 
-    (service as any).handleMessage({ data: JSON.stringify({ type: 'res', ok: false, id: 1 }) });
-    expect((service as any).connected).toBe(false);
+    (service as any).handleMessage(JSON.stringify({ type: 'event', event: 'some.other.event' }));
+
+    expect(ws.send).toHaveBeenCalledTimes(1);
+    const sent = JSON.parse(ws.send.mock.calls[0][0]);
+    expect(sent.method).toBe('connect');
   });
 });
