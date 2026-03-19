@@ -24,11 +24,6 @@ const app = new OneBunApplication(AppModule, {
       },
       streams: [
         {
-          name: 'agent_inbound',
-          subjects: ['agent.inbound.>'],
-          retention: 'workqueue',
-        },
-        {
           name: 'agent_events',
           subjects: ['agent.events.>'],
           retention: 'limits',

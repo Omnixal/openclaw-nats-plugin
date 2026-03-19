@@ -20,3 +20,18 @@ export const pendingEvents = sqliteTable('pending_events', {
 
 export type DbPendingEvent = typeof pendingEvents.$inferSelect;
 export type NewPendingEvent = typeof pendingEvents.$inferInsert;
+
+export const eventRoutes = sqliteTable('event_routes', {
+  id:        text('id').primaryKey(),
+  pattern:   text('pattern').notNull().unique(),
+  target:    text('target').notNull().default('main'),
+  enabled:   integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  priority:  integer('priority').notNull().default(5),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  index('event_routes_pattern_idx').on(table.pattern),
+  index('event_routes_target_idx').on(table.target),
+]);
+
+export type DbEventRoute = typeof eventRoutes.$inferSelect;
+export type NewEventRoute = typeof eventRoutes.$inferInsert;

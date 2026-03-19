@@ -1,5 +1,6 @@
 {
   "id": "openclaw-nats-plugin",
+  "skills": ["./skills"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

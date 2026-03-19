@@ -12,8 +12,8 @@ export class PublisherController extends BaseController {
 
   @Post()
   async publish(@Body(publishBodySchema) body: PublishBody): Promise<OneBunResponse> {
-    if (!body.subject.startsWith('agent.events.')) {
-      return this.error('subject must start with agent.events.', 400, 400);
+    if (!body.subject.startsWith('agent.')) {
+      return this.error('subject must start with agent.', 400, 400);
     }
     await this.publisherService.publish(body.subject, body.payload, body.meta);
     return this.success({ published: true });

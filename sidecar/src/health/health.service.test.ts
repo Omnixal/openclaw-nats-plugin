@@ -85,7 +85,7 @@ describe('HealthService', () => {
     const status = await service.getStatus();
 
     expect(status.config).toEqual({
-      streams: ['agent_inbound', 'agent_events', 'agent_dlq'],
+      streams: ['agent_events', 'agent_dlq'],
       consumerName: 'openclaw-main',
       dedupTtlSeconds: 60,
     });

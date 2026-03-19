@@ -44,11 +44,6 @@ describe('nats-sidecar integration', () => {
             },
             streams: [
               {
-                name: 'agent_inbound',
-                subjects: ['agent.inbound.>'],
-                retention: 'workqueue',
-              },
-              {
                 name: 'agent_events',
                 subjects: ['agent.events.>'],
                 retention: 'limits',
@@ -157,5 +152,66 @@ describe('nats-sidecar integration', () => {
     const body = (await res.json()) as any;
     const data = body.result ?? body.data ?? body;
     expect(data.marked).toBe(0);
+  });
+
+  // --- Route management ---
+
+  it('GET /api/routes/status with auth returns not configured', async () => {
+    const res = await module.inject('GET', '/api/routes/status', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    const data = body.result ?? body;
+    expect(data.configured).toBe(false);
+    expect(data.count).toBe(0);
+  });
+
+  it('POST /api/routes creates a subscription', async () => {
+    const res = await module.inject('POST', '/api/routes', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+      body: { pattern: 'agent.events.cron.*', target: 'main' },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    const data = body.result ?? body;
+    expect(data.pattern).toBe('agent.events.cron.*');
+    expect(data.target).toBe('main');
+  });
+
+  it('GET /api/routes lists subscriptions', async () => {
+    const res = await module.inject('GET', '/api/routes', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    const data = body.result ?? body;
+    expect(data.length).toBeGreaterThan(0);
+  });
+
+  it('GET /api/routes?target=main filters by target', async () => {
+    const res = await module.inject('GET', '/api/routes?target=main', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    const data = body.result ?? body;
+    expect(data.every((r: any) => r.target === 'main')).toBe(true);
+  });
+
+  it('POST /api/routes rejects bad pattern prefix', async () => {
+    const res = await module.inject('POST', '/api/routes', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+      body: { pattern: 'bad.subject', target: 'main' },
+    });
+    const body = (await res.json()) as any;
+    expect(body.success).toBe(false);
+  });
+
+  it('POST /api/routes requires auth', async () => {
+    const res = await module.inject('POST', '/api/routes', {
+      body: { pattern: 'agent.events.test.*', target: 'main' },
+    });
+    expect(res.status).toBe(401);
   });
 });

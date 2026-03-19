@@ -7,6 +7,7 @@ import { GatewayClientModule } from './gateway/gateway-client.module';
 import { ConsumerModule } from './consumer/consumer.module';
 import { PendingModule } from './pending/pending.module';
 import { HealthModule } from './health/health.module';
+import { RouterModule } from './router/router.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { HealthModule } from './health/health.module';
     ConsumerModule,
     PendingModule,
     HealthModule,
+    RouterModule,
   ],
 })
 export class AppModule {}
