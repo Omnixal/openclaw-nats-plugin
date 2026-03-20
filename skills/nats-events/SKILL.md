@@ -5,22 +5,21 @@ description: Event-driven patterns for NATS. Use when the agent needs to publish
 
 # NATS Event Bus
 
-You have access to a NATS JetStream event bus via four tools:
+You have access to a NATS JetStream event bus via these tools:
 
 | Tool | Purpose |
 |---|---|
 | `nats_publish` | Publish an event (subject + payload) |
-| `nats_subscribe` | Create a routing rule (pattern -> session) |
+| `nats_subscribe` | Create a routing rule (pattern -> session) — idempotent, safe to repeat |
 | `nats_unsubscribe` | Remove a routing rule by ID |
 | `nats_subscriptions` | List routing rules (optional filters: pattern, target) |
+| `nats_cron_add` | Schedule a recurring NATS event (no LLM wake) |
+| `nats_cron_remove` | Remove a scheduled cron job |
+| `nats_cron_list` | List all scheduled cron jobs |
 
 ## Bootstrap
 
-Before first use, check if subscriptions are configured:
-
-1. Call `nats_subscriptions` with no arguments
-2. If the list is **non-empty** — setup is complete, proceed with your task
-3. If **empty** — run initial setup:
+Before first use, set up default subscriptions. This is idempotent — safe to run multiple times:
 
 ```
 nats_subscribe(pattern: "agent.events.cron.>",      target: "main")
@@ -29,30 +28,45 @@ nats_subscribe(pattern: "agent.events.hook.>",       target: "main")
 nats_subscribe(pattern: "agent.events.custom.>",     target: "main")
 ```
 
-Do NOT repeat bootstrap if subscriptions already exist.
-
 ## Event-Driven Rules
 
-1. **Never poll** — subscribe to events and react when they arrive as messages in your session
-2. **Cron is OK** but must go through NATS: cron job calls `nats-cron-trigger.sh` -> event published -> delivered to your session -> you react
-3. **Every scheduled task** = cron entry calling `nats-cron-trigger.sh` + subscription on that subject
-4. **Incoming events** arrive as chat messages formatted `[NATS:<subject>] <payload>`
+1. **Never poll** — subscribe to events and react when they arrive as messages
+2. **Incoming events** arrive as chat messages formatted `[NATS:<subject>] <payload>`
 
-## Creating Cron Tasks
+## Scheduling Events (Cron)
 
-Always use the bundled script — never invoke LLM from cron:
+Use `nats_cron_add` for scheduled events. This fires directly without waking the LLM:
 
-```bash
-# Step 1: Subscribe to the event
-nats_subscribe(pattern: "agent.events.cron.daily-report", target: "main")
+```
+# Schedule a daily report trigger at 9am UTC
+nats_cron_add(
+  name: "daily-report",
+  cron: "0 9 * * *",
+  subject: "agent.events.cron.daily-report",
+  payload: { "task": "daily_report" }
+)
 
-# Step 2: Create cron entry using the trigger script
-# The script is at: <plugin-dir>/skills/nats-events/scripts/nats-cron-trigger.sh
-*/30 * * * * /path/to/nats-cron-trigger.sh agent.events.cron.check-revenue '{"task":"check_revenue"}'
-0 9 * * * /path/to/nats-cron-trigger.sh agent.events.cron.daily-report '{"task":"daily_report"}'
+# Schedule hourly revenue check
+nats_cron_add(
+  name: "hourly-check",
+  cron: "0 * * * *",
+  subject: "agent.events.cron.check-revenue",
+  payload: { "task": "check_revenue" }
+)
+
+# List all scheduled jobs
+nats_cron_list()
+
+# Remove a job
+nats_cron_remove(name: "hourly-check")
 ```
 
-The script only needs `NATS_SIDECAR_URL` and `NATS_PLUGIN_API_KEY` environment variables.
+Don't forget to also subscribe to the cron subject so you receive the events:
+```
+nats_subscribe(pattern: "agent.events.cron.>", target: "main")
+```
+
+**Alternative (environments with system crontab):** Use `nats-cron-trigger.sh` script.
 
 ## Subject Hierarchy
 
@@ -78,16 +92,15 @@ The script only needs `NATS_SIDECAR_URL` and `NATS_PLUGIN_API_KEY` environment v
 **React to subagent completion:**
 ```
 nats_subscribe(pattern: "agent.events.subagent.ended", target: "main")
-# When subagent finishes, you receive: [NATS:agent.events.subagent.ended] {"subagentId":...,"result":...}
 ```
 
-**Publish a custom event for external consumers:**
+**Publish a custom event:**
 ```
 nats_publish(subject: "agent.events.custom.report-ready", payload: {"reportUrl": "https://..."})
 ```
 
-**Schedule a recurring task:**
+**Set up daily workflow:**
 ```
-nats_subscribe(pattern: "agent.events.cron.hourly-check", target: "main")
-# Then create crontab: 0 * * * * nats-cron-trigger.sh agent.events.cron.hourly-check '{}'
+nats_subscribe(pattern: "agent.events.cron.daily-report", target: "main")
+nats_cron_add(name: "daily-report", cron: "0 9 * * *", subject: "agent.events.cron.daily-report", payload: {"task": "report"})
 ```
