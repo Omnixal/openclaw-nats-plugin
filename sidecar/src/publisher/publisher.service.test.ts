@@ -13,7 +13,8 @@ describe('PublisherService', () => {
       publish: mockPublish,
       isConnected: () => true,
     };
-    service = new PublisherService(mockQueueService);
+    const mockMetrics = { recordPublish: mock(() => {}), recordConsume: mock(() => {}), getAll: mock(() => []) };
+    service = new PublisherService(mockQueueService, mockMetrics as any);
     (service as any).logger = {
       debug: mock(() => {}),
       info: mock(() => {}),

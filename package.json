@@ -10,7 +10,8 @@
   },
   "scripts": {
     "build:dashboard": "cd dashboard && bun run build",
-    "prepublishOnly": "bun run build:dashboard"
+    "prepublishOnly": "bun run build:dashboard",
+    "nats": "docker run -d --name nats -p 4222:4222 nats:2.10-alpine -js"
   },
   "files": [
     "index.ts",

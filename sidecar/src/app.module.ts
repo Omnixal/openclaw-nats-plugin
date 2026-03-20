@@ -1,5 +1,6 @@
-import { Module } from '@onebun/core';
+import { getConfig, Module } from '@onebun/core';
 import { DrizzleModule, DatabaseType } from '@onebun/drizzle';
+import { envSchema, type AppConfig } from './config';
 import { DedupModule } from './dedup/dedup.module';
 import { PublisherModule } from './publisher/publisher.module';
 import { PreHandlersModule } from './pre-handlers/pre-handlers.module';
@@ -9,6 +10,9 @@ import { PendingModule } from './pending/pending.module';
 import { HealthModule } from './health/health.module';
 import { RouterModule } from './router/router.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { MetricsModule } from './metrics/metrics.module';
+
+const config = getConfig<AppConfig>(envSchema);
 
 @Module({
   imports: [
@@ -16,7 +20,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
       connection: {
         type: DatabaseType.SQLITE,
         options: {
-          url: process.env.DB_PATH ?? './data/nats-sidecar.db',
+          url: config.get('database.url'),
         },
       },
       migrationsFolder: './src/db/migrations',
@@ -30,6 +34,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     HealthModule,
     RouterModule,
     SchedulerModule,
+    MetricsModule,
   ],
 })
 export class AppModule {}

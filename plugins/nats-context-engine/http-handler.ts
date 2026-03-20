@@ -55,7 +55,7 @@ async function proxyToSidecar(
     }
 
     let body: string | undefined;
-    if (req.method === 'POST' || req.method === 'PUT') {
+    if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
       body = await readBody(req);
     }
 

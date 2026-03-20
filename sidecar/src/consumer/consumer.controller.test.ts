@@ -57,7 +57,8 @@ describe('ConsumerController', () => {
       recordDelivery: mock(() => Promise.resolve()),
     };
 
-    service = new ConsumerController(mockPipeline, mockGatewayClient, mockPendingService, mockRouterService);
+    const mockMetrics = { recordPublish: mock(() => {}), recordConsume: mock(() => {}), getAll: mock(() => []) };
+    service = new ConsumerController(mockPipeline, mockGatewayClient, mockPendingService, mockRouterService, mockMetrics as any);
     (service as any).logger = {
       debug: mock(() => {}),
       info: mock(() => {}),

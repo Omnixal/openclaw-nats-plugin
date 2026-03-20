@@ -17,3 +17,21 @@ export const markDeliveredBodySchema = type({
 });
 
 export type MarkDeliveredBody = typeof markDeliveredBodySchema.infer;
+
+export const createRouteBodySchema = type({
+  pattern: 'string',
+  'target?': 'string',
+  'priority?': 'number',
+});
+
+export type CreateRouteBody = typeof createRouteBodySchema.infer;
+
+export const createCronBodySchema = type({
+  name: 'string',
+  cron: 'string',
+  subject: 'string',
+  'payload?': 'unknown',
+  'timezone?': 'string',
+});
+
+export type CreateCronBody = typeof createCronBodySchema.infer;

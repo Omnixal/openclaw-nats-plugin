@@ -10,17 +10,9 @@ import {
   UseMiddleware,
   type OneBunResponse,
 } from '@onebun/core';
-import { type } from 'arktype';
 import { RouterService } from './router.service';
 import { ApiKeyMiddleware } from '../auth/api-key.middleware';
-
-const createRouteBody = type({
-  pattern: 'string',
-  'target?': 'string',
-  'priority?': 'number',
-});
-
-type CreateRouteBody = typeof createRouteBody.infer;
+import { createRouteBodySchema, type CreateRouteBody } from '../validation/schemas';
 
 @Controller('/api/routes')
 @UseMiddleware(ApiKeyMiddleware)
@@ -61,7 +53,7 @@ export class RouterController extends BaseController {
   }
 
   @Post()
-  async createRoute(@Body(createRouteBody) body: CreateRouteBody): Promise<OneBunResponse> {
+  async createRoute(@Body(createRouteBodySchema) body: CreateRouteBody): Promise<OneBunResponse> {
     if (!body.pattern.startsWith('agent.events.')) {
       return this.error('pattern must start with agent.events.', 400, 400);
     }

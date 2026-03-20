@@ -1,23 +1,46 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getHealth, getPending, type HealthStatus, type PendingEvent } from '$lib/api';
+  import {
+    getHealth, getPending, getRoutes, getCronJobs, getMetrics,
+    type HealthStatus, type PendingEvent, type EventRoute, type CronJob, type SubjectMetric,
+  } from '$lib/api';
   import HealthCards from '$lib/HealthCards.svelte';
   import PendingTable from '$lib/PendingTable.svelte';
   import ConfigPanel from '$lib/ConfigPanel.svelte';
+  import RoutesPanel from '$lib/RoutesPanel.svelte';
+  import CronPanel from '$lib/CronPanel.svelte';
+  import MetricsPanel from '$lib/MetricsPanel.svelte';
 
   let health: HealthStatus | null = $state(null);
   let pending: PendingEvent[] = $state([]);
+  let routes: EventRoute[] = $state([]);
+  let cronJobs: CronJob[] = $state([]);
+  let metrics: SubjectMetric[] = $state([]);
   let error: string | null = $state(null);
+  let activeTab: 'pending' | 'routes' | 'cron' | 'metrics' = $state('pending');
+
+  const tabs = [
+    { id: 'pending' as const, label: 'Pending' },
+    { id: 'routes' as const, label: 'Routes' },
+    { id: 'cron' as const, label: 'Cron Jobs' },
+    { id: 'metrics' as const, label: 'Metrics' },
+  ];
 
   async function refresh() {
     try {
       error = null;
-      const [h, p] = await Promise.all([
+      const [h, p, r, c, m] = await Promise.all([
         getHealth(),
         getPending('default'),
+        getRoutes(),
+        getCronJobs(),
+        getMetrics(),
       ]);
       health = h;
       pending = p;
+      routes = r;
+      cronJobs = c;
+      metrics = m;
     } catch (e: any) {
       error = e.message;
     }
@@ -30,7 +53,7 @@
   });
 </script>
 
-<main class="min-h-screen bg-background p-6 max-w-4xl mx-auto">
+<main class="min-h-screen bg-background p-6 max-w-5xl mx-auto">
   <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold">NATS Dashboard</h1>
     <button
@@ -50,10 +73,28 @@
   <div class="space-y-6">
     <HealthCards {health} />
 
-    <div>
-      <h2 class="text-lg font-semibold mb-3">Pending Events</h2>
-      <PendingTable events={pending} onRefresh={refresh} />
+    <div class="flex gap-1 border-b">
+      {#each tabs as tab}
+        <button
+          class="px-4 py-2 text-sm font-medium transition-colors {activeTab === tab.id
+            ? 'border-b-2 border-primary text-foreground'
+            : 'text-muted-foreground hover:text-foreground'}"
+          onclick={() => activeTab = tab.id}
+        >
+          {tab.label}
+        </button>
+      {/each}
     </div>
+
+    {#if activeTab === 'pending'}
+      <PendingTable events={pending} onRefresh={refresh} />
+    {:else if activeTab === 'routes'}
+      <RoutesPanel {routes} onRefresh={refresh} />
+    {:else if activeTab === 'cron'}
+      <CronPanel jobs={cronJobs} onRefresh={refresh} />
+    {:else if activeTab === 'metrics'}
+      <MetricsPanel {metrics} />
+    {/if}
 
     <ConfigPanel {health} />
   </div>

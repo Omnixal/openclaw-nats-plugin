@@ -1,23 +1,13 @@
 import {
-  Controller, Get, Post, Delete,
+  Controller, Get, Post, Patch, Delete,
   Body, Param, BaseController,
   UseMiddleware, Subscribe,
   type Message,
   type OneBunResponse,
 } from '@onebun/core';
-import { type } from 'arktype';
 import { SchedulerService } from './scheduler.service';
 import { ApiKeyMiddleware } from '../auth/api-key.middleware';
-
-const createCronBody = type({
-  name: 'string',
-  cron: 'string',
-  subject: 'string',
-  'payload?': 'unknown',
-  'timezone?': 'string',
-});
-
-type CreateCronBody = typeof createCronBody.infer;
+import { createCronBodySchema, type CreateCronBody } from '../validation/schemas';
 
 @Controller('/api/cron')
 @UseMiddleware(ApiKeyMiddleware)
@@ -27,7 +17,7 @@ export class SchedulerController extends BaseController {
   }
 
   @Post()
-  async createJob(@Body(createCronBody) body: CreateCronBody): Promise<OneBunResponse> {
+  async createJob(@Body(createCronBodySchema) body: CreateCronBody): Promise<OneBunResponse> {
     if (!body.subject.startsWith('agent.events.')) {
       return this.error('subject must start with agent.events.', 400, 400);
     }
@@ -45,6 +35,20 @@ export class SchedulerController extends BaseController {
   async listJobs(): Promise<OneBunResponse> {
     const jobs = await this.scheduler.list();
     return this.success(jobs);
+  }
+
+  @Patch('/:name/toggle')
+  async toggleJob(@Param('name') name: string): Promise<OneBunResponse> {
+    const result = await this.scheduler.toggle(name);
+    if (!result) return this.error('Job not found', 404, 404);
+    return this.success(result);
+  }
+
+  @Post('/:name/run')
+  async runJob(@Param('name') name: string): Promise<OneBunResponse> {
+    const fired = await this.scheduler.fireNow(name);
+    if (!fired) return this.error('Job not found', 404, 404);
+    return this.success({ fired: true });
   }
 
   @Delete('/:name')

@@ -9,16 +9,18 @@ export class RouterRepository extends BaseService {
   }
 
   async findAll(filters?: { pattern?: string; target?: string }): Promise<DbEventRoute[]> {
-    let query = this.db.select().from(eventRoutes);
+    // drizzle type limitation: chained .where()/.orderBy() loses type info
+    let query = this.db.select().from(eventRoutes) as any;
     if (filters?.pattern) {
-      query = query.where(eq(eventRoutes.pattern, filters.pattern)) as any;
+      query = query.where(eq(eventRoutes.pattern, filters.pattern));
     } else if (filters?.target) {
-      query = query.where(eq(eventRoutes.target, filters.target)) as any;
+      query = query.where(eq(eventRoutes.target, filters.target));
     }
-    return query.orderBy(eventRoutes.priority) as any;
+    return query.orderBy(eventRoutes.priority);
   }
 
   async findEnabled(): Promise<DbEventRoute[]> {
+    // drizzle type limitation: chained .where()/.orderBy() loses type info
     return this.db.select().from(eventRoutes)
       .where(eq(eventRoutes.enabled, true))
       .orderBy(eventRoutes.priority) as any;
@@ -68,7 +70,9 @@ export class RouterRepository extends BaseService {
   }
 
   async count(): Promise<number> {
-    const rows = await this.db.select().from(eventRoutes);
-    return rows.length;
+    const result = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(eventRoutes);
+    return result[0]?.count ?? 0;
   }
 }

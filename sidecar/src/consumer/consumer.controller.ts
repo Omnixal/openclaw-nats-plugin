@@ -3,6 +3,7 @@ import { PipelineService } from '../pre-handlers/pipeline.service';
 import { GatewayClientService } from '../gateway/gateway-client.service';
 import { PendingService } from '../pending/pending.service';
 import { RouterService } from '../router/router.service';
+import { MetricsService } from '../metrics/metrics.service';
 import type { NatsEventEnvelope } from '../publisher/envelope';
 
 @Controller('/consumer')
@@ -12,6 +13,7 @@ export class ConsumerController extends BaseController {
     private gatewayClient: GatewayClientService,
     private pendingService: PendingService,
     private routerService: RouterService,
+    private metrics: MetricsService,
   ) {
     super();
   }
@@ -58,6 +60,7 @@ export class ConsumerController extends BaseController {
             },
           });
           await this.routerService.recordDelivery(route.id, envelope.subject);
+          this.metrics.recordConsume(envelope.subject);
         }
         await message.ack();
       } else {

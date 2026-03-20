@@ -27,10 +27,12 @@ export class SchedulerRepository extends BaseService {
   }
 
   async findAll(): Promise<DbCronJob[]> {
+    // drizzle type limitation: chained .orderBy() loses type info
     return this.db.select().from(cronJobs).orderBy(cronJobs.name) as any;
   }
 
   async findAllEnabled(): Promise<DbCronJob[]> {
+    // drizzle type limitation: chained .where()/.orderBy() loses type info
     return this.db.select().from(cronJobs)
       .where(eq(cronJobs.enabled, true))
       .orderBy(cronJobs.name) as any;
@@ -46,6 +48,12 @@ export class SchedulerRepository extends BaseService {
     const result = await this.db.delete(cronJobs)
       .where(eq(cronJobs.name, name)).returning();
     return result.length > 0;
+  }
+
+  async setEnabled(name: string, enabled: boolean): Promise<void> {
+    await this.db.update(cronJobs)
+      .set({ enabled })
+      .where(eq(cronJobs.name, name));
   }
 
   async updateLastRun(name: string): Promise<void> {

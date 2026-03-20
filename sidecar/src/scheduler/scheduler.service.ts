@@ -85,14 +85,52 @@ export class SchedulerService extends BaseService implements OnModuleInit {
     });
   }
 
+  async toggle(name: string) {
+    const job = await this.repo.findByName(name);
+    if (!job) return null;
+
+    const newEnabled = !job.enabled;
+    await this.repo.setEnabled(name, newEnabled);
+
+    if (newEnabled) {
+      this.scheduler.addCronJob(
+        name,
+        job.expr,
+        `scheduler.fire.${name}`,
+      );
+      this.logger.info(`Cron job '${name}' enabled`);
+    } else {
+      if (this.scheduler.hasJob(name)) {
+        this.scheduler.removeJob(name);
+      }
+      this.logger.info(`Cron job '${name}' disabled`);
+    }
+
+    return this.repo.findByName(name);
+  }
+
+  async fireNow(name: string): Promise<boolean> {
+    const job = await this.repo.findByName(name);
+    if (!job) return false;
+
+    const base = (job.payload && typeof job.payload === 'object' && !Array.isArray(job.payload))
+      ? (job.payload as Record<string, unknown>)
+      : {};
+    const payload = { ...base, _cron: { jobName: job.name, firedAt: new Date().toISOString(), manual: true } };
+    await this.publisher.publish(job.subject, payload);
+    await this.repo.updateLastRun(name);
+    this.logger.info(`Cron job '${name}' manually fired -> ${job.subject}`);
+    return true;
+  }
+
   async handleFire(jobName: string): Promise<void> {
     const job = await this.repo.findByName(jobName);
     if (!job || !job.enabled) return;
 
-    const payload = {
-      ...(job.payload as Record<string, unknown> ?? {}),
-      _cron: { jobName: job.name, firedAt: new Date().toISOString() },
-    };
+    const base = (job.payload && typeof job.payload === 'object' && !Array.isArray(job.payload))
+      ? (job.payload as Record<string, unknown>)
+      : {};
+    const payload = { ...base, _cron: { jobName: job.name, firedAt: new Date().toISOString() } };
     await this.publisher.publish(job.subject, payload);
     await this.repo.updateLastRun(job.name);
     this.logger.debug(`Cron fired: ${job.name} -> ${job.subject}`);

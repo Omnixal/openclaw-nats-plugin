@@ -49,7 +49,7 @@ export class HealthService extends BaseService {
       pendingCount,
       uptimeSeconds: Math.floor((Date.now() - this.startedAt) / 1000),
       config: {
-        streams: ['agent_events', 'agent_dlq'],
+        streams: ['agent_events', 'agent_dlq', 'scheduler_internal'],
         consumerName: this.config.get('consumer.name'),
         dedupTtlSeconds: this.config.get('dedup.ttlSeconds'),
       },
