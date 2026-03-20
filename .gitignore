@@ -6,3 +6,4 @@ bun.lockb
 dashboard/node_modules/
 sidecar/node_modules/
 sidecar/data/
+.worktrees/
