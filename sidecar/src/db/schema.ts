@@ -28,6 +28,9 @@ export const eventRoutes = sqliteTable('event_routes', {
   enabled:   integer('enabled', { mode: 'boolean' }).notNull().default(true),
   priority:  integer('priority').notNull().default(5),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  lastDeliveredAt: integer('last_delivered_at', { mode: 'timestamp_ms' }),
+  lastEventSubject: text('last_event_subject'),
+  deliveryCount: integer('delivery_count').notNull().default(0),
 }, (table) => [
   index('event_routes_pattern_idx').on(table.pattern),
   index('event_routes_target_idx').on(table.target),
@@ -35,3 +38,20 @@ export const eventRoutes = sqliteTable('event_routes', {
 
 export type DbEventRoute = typeof eventRoutes.$inferSelect;
 export type NewEventRoute = typeof eventRoutes.$inferInsert;
+
+export const cronJobs = sqliteTable('cron_jobs', {
+  id:        text('id').primaryKey(),
+  name:      text('name').notNull().unique(),
+  expr:      text('expr').notNull(),
+  subject:   text('subject').notNull(),
+  payload:   text('payload', { mode: 'json' }).$type<unknown>(),
+  timezone:  text('timezone').notNull().default('UTC'),
+  enabled:   integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  lastRunAt: integer('last_run_at', { mode: 'timestamp_ms' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  index('cron_jobs_name_idx').on(table.name),
+]);
+
+export type DbCronJob = typeof cronJobs.$inferSelect;
+export type NewCronJob = typeof cronJobs.$inferInsert;
