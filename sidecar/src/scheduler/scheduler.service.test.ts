@@ -93,6 +93,9 @@ describe('SchedulerService', () => {
     const [subject, payload] = mockPublisher.publish.mock.calls[0];
     expect(subject).toBe('agent.events.cron.daily');
     expect(payload).toHaveProperty('task', 'report');
+    expect(payload).toHaveProperty('_cron');
+    expect(payload._cron.jobName).toBe('daily-report');
+    expect(typeof payload._cron.firedAt).toBe('string');
     expect(mockRepo.updateLastRun).toHaveBeenCalledWith('daily-report');
   });
 

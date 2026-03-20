@@ -55,6 +55,12 @@ describe('nats-sidecar integration', () => {
                 retention: 'limits',
                 maxAge: SEVEN_DAYS_NS,
               },
+              {
+                name: 'scheduler_internal',
+                subjects: ['scheduler.>'],
+                retention: 'limits',
+                maxAge: 24 * 60 * 60 * 1e9,
+              },
             ],
             consumerConfig: {
               ackWait: 30_000 * 1_000_000,

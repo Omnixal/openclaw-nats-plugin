@@ -89,7 +89,11 @@ export class SchedulerService extends BaseService implements OnModuleInit {
     const job = await this.repo.findByName(jobName);
     if (!job || !job.enabled) return;
 
-    await this.publisher.publish(job.subject, job.payload ?? {});
+    const payload = {
+      ...(job.payload as Record<string, unknown> ?? {}),
+      _cron: { jobName: job.name, firedAt: new Date().toISOString() },
+    };
+    await this.publisher.publish(job.subject, payload);
     await this.repo.updateLastRun(job.name);
     this.logger.debug(`Cron fired: ${job.name} -> ${job.subject}`);
   }
