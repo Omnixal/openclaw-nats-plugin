@@ -8,6 +8,7 @@ import { ConsumerModule } from './consumer/consumer.module';
 import { PendingModule } from './pending/pending.module';
 import { HealthModule } from './health/health.module';
 import { RouterModule } from './router/router.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { RouterModule } from './router/router.module';
     PendingModule,
     HealthModule,
     RouterModule,
+    SchedulerModule,
   ],
 })
 export class AppModule {}

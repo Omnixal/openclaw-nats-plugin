@@ -35,6 +35,12 @@ const app = new OneBunApplication(AppModule, {
           retention: 'limits',
           maxAge: SEVEN_DAYS_NS,
         },
+        {
+          name: 'scheduler_internal',
+          subjects: ['scheduler.>'],
+          retention: 'limits',
+          maxAge: 24 * 60 * 60 * 1e9, // 1 day
+        },
       ],
       consumerConfig: {
         ackWait: ackWaitMs * 1_000_000, // ms → ns
