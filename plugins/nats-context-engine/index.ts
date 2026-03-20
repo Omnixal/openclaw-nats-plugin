@@ -172,6 +172,65 @@ export default function (api: any) {
     },
   });
 
+  // ── Cron Scheduler Tools ────────────────────────────────────────────
+
+  api.registerTool({
+    name: 'nats_cron_add',
+    description: 'Create or update a scheduled cron job that publishes a NATS event on a schedule. No LLM wake — fires directly.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Unique job name (e.g., daily-report, hourly-check)' },
+        cron: { type: 'string', description: 'Cron expression (e.g., "0 9 * * *" for daily at 9am)' },
+        subject: { type: 'string', description: 'NATS subject to publish (must start with agent.events.)' },
+        payload: { type: 'object', description: 'Event payload data' },
+        timezone: { type: 'string', description: 'Timezone (default: UTC). e.g., Europe/Moscow' },
+      },
+      required: ['name', 'cron', 'subject'],
+    },
+    async execute(_id: string, params: any) {
+      const result = await sidecarFetch('/api/cron', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: params.name,
+          cron: params.cron,
+          subject: params.subject,
+          payload: params.payload ?? {},
+          timezone: params.timezone,
+        }),
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+  });
+
+  api.registerTool({
+    name: 'nats_cron_remove',
+    description: 'Remove a scheduled cron job by name.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Job name to remove' },
+      },
+      required: ['name'],
+    },
+    async execute(_id: string, params: any) {
+      const result = await sidecarFetch(`/api/cron/${encodeURIComponent(params.name)}`, {
+        method: 'DELETE',
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+  });
+
+  api.registerTool({
+    name: 'nats_cron_list',
+    description: 'List all scheduled cron jobs with their next run time and status.',
+    parameters: { type: 'object', properties: {} },
+    async execute() {
+      const result = await sidecarFetch('/api/cron');
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+  });
+
   // ── Dashboard UI ─────────────────────────────────────────────────
 
   api.registerHttpRoute({
