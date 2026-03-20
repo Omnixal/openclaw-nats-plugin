@@ -57,6 +57,7 @@ export class ConsumerController extends BaseController {
               priority: (ctx.enrichments['priority'] as number) ?? envelope.meta?.priority ?? 5,
             },
           });
+          await this.routerService.recordDelivery(route.id, envelope.subject);
         }
         await message.ack();
       } else {
