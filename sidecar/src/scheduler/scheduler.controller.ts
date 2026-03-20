@@ -1,7 +1,8 @@
 import {
   Controller, Get, Post, Delete,
   Body, Param, BaseController,
-  UseMiddleware, Subscribe, Message,
+  UseMiddleware, Subscribe,
+  type Message,
   type OneBunResponse,
 } from '@onebun/core';
 import { type } from 'arktype';

@@ -214,4 +214,182 @@ describe('nats-sidecar integration', () => {
     });
     expect(res.status).toBe(401);
   });
+
+  // --- Idempotent Subscribe (upsert) ---
+
+  it('POST /api/routes with new pattern returns created=true', async () => {
+    const res = await module.inject('POST', '/api/routes', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+      body: { pattern: 'agent.events.idempotent.test', target: 'main', priority: 3 },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    const data = body.result ?? body;
+    expect(data.created).toBe(true);
+    expect(data.pattern).toBe('agent.events.idempotent.test');
+    expect(data.priority).toBe(3);
+  });
+
+  it('POST /api/routes with existing pattern upserts (created=false, new priority)', async () => {
+    const res = await module.inject('POST', '/api/routes', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+      body: { pattern: 'agent.events.idempotent.test', target: 'main', priority: 8 },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    const data = body.result ?? body;
+    expect(data.created).toBe(false);
+    expect(data.priority).toBe(8);
+  });
+
+  // --- Route Health ---
+
+  it('GET /api/routes/health returns per-route stats', async () => {
+    const res = await module.inject('GET', '/api/routes/health', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    const data = body.result ?? body;
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeGreaterThan(0);
+    // Each entry should have the health fields
+    const entry = data[0];
+    expect(entry).toHaveProperty('pattern');
+    expect(entry).toHaveProperty('target');
+    expect(entry).toHaveProperty('enabled');
+    expect(entry).toHaveProperty('deliveryCount');
+    expect(entry).toHaveProperty('lagMs');
+  });
+
+  it('Routes without deliveries have null lagMs', async () => {
+    const res = await module.inject('GET', '/api/routes/health', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    const data = body.result ?? body;
+    // Find a route that has not had any deliveries (deliveryCount === 0)
+    const undelivered = data.find((r: any) => r.deliveryCount === 0);
+    expect(undelivered).toBeDefined();
+    expect(undelivered.lagMs).toBeNull();
+    expect(undelivered.lastDeliveredAt).toBeNull();
+  });
+
+  // --- Scheduler CRUD ---
+
+  it('POST /api/cron creates a job', async () => {
+    const res = await module.inject('POST', '/api/cron', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+      body: {
+        name: 'test-daily',
+        cron: '0 9 * * *',
+        subject: 'agent.events.cron.daily',
+        payload: { task: 'report' },
+      },
+    });
+    const body = (await res.json()) as any;
+    expect(res.status).toBe(200);
+    const data = body.result ?? body;
+    expect(data.name).toBe('test-daily');
+    expect(data.expr).toBe('0 9 * * *');
+    expect(data.subject).toBe('agent.events.cron.daily');
+  });
+
+  it('GET /api/cron lists jobs', async () => {
+    const res = await module.inject('GET', '/api/cron', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    const data = body.result ?? body;
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeGreaterThan(0);
+    const job = data.find((j: any) => j.name === 'test-daily');
+    expect(job).toBeDefined();
+    expect(job.expr).toBe('0 9 * * *');
+  });
+
+  it('POST /api/cron with same name upserts (no duplicate)', async () => {
+    const res = await module.inject('POST', '/api/cron', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+      body: {
+        name: 'test-daily',
+        cron: '0 10 * * *',
+        subject: 'agent.events.cron.daily',
+        payload: { task: 'updated-report' },
+      },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    const data = body.result ?? body;
+    expect(data.name).toBe('test-daily');
+    expect(data.expr).toBe('0 10 * * *');
+
+    // Verify only one job with that name exists
+    const listRes = await module.inject('GET', '/api/cron', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+    });
+    const listBody = (await listRes.json()) as any;
+    const listData = listBody.result ?? listBody;
+    const matches = listData.filter((j: any) => j.name === 'test-daily');
+    expect(matches.length).toBe(1);
+    expect(matches[0].expr).toBe('0 10 * * *');
+  });
+
+  it('POST /api/cron rejects non agent.events.* subjects', async () => {
+    const res = await module.inject('POST', '/api/cron', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+      body: {
+        name: 'bad-cron',
+        cron: '0 9 * * *',
+        subject: 'other.topic',
+      },
+    });
+    const body = (await res.json()) as any;
+    expect(body.success).toBe(false);
+  });
+
+  it('POST /api/cron requires auth', async () => {
+    const res = await module.inject('POST', '/api/cron', {
+      body: { name: 'no-auth', cron: '0 9 * * *', subject: 'agent.events.test' },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('DELETE /api/cron/:name removes a job', async () => {
+    // First create a job to delete
+    await module.inject('POST', '/api/cron', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+      body: {
+        name: 'to-delete',
+        cron: '0 0 * * *',
+        subject: 'agent.events.cron.cleanup',
+      },
+    });
+
+    const delRes = await module.inject('DELETE', '/api/cron/to-delete', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+    });
+    expect(delRes.status).toBe(200);
+    const delBody = (await delRes.json()) as any;
+    const delData = delBody.result ?? delBody;
+    expect(delData.deleted).toBe(true);
+
+    // Verify it's gone
+    const listRes = await module.inject('GET', '/api/cron', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+    });
+    const listBody = (await listRes.json()) as any;
+    const listData = listBody.result ?? listBody;
+    const found = listData.find((j: any) => j.name === 'to-delete');
+    expect(found).toBeUndefined();
+  });
+
+  it('DELETE /api/cron/:name returns 404 for non-existent job', async () => {
+    const res = await module.inject('DELETE', '/api/cron/non-existent-job', {
+      headers: { 'Authorization': `Bearer ${API_KEY}` },
+    });
+    expect(res.status).toBe(404);
+  });
 });

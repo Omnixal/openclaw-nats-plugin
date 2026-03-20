@@ -21,15 +21,18 @@ export class SchedulerService extends BaseService implements OnModuleInit {
     super();
   }
 
+  private get scheduler() {
+    return this.queueService.getScheduler();
+  }
+
   async onModuleInit(): Promise<void> {
     const jobs = await this.repo.findAllEnabled();
     for (const job of jobs) {
-      this.queueService.addJob({
-        type: 'cron',
-        name: job.name,
-        expression: job.expr,
-        pattern: `scheduler.fire.${job.name}`,
-      });
+      this.scheduler.addCronJob(
+        job.name,
+        job.expr,
+        `scheduler.fire.${job.name}`,
+      );
     }
     if (jobs.length > 0) {
       this.logger.info(`Restored ${jobs.length} cron jobs from DB`);
@@ -48,20 +51,15 @@ export class SchedulerService extends BaseService implements OnModuleInit {
       createdAt: new Date(),
     });
 
-    if (this.queueService.hasJob(input.name)) {
-      this.queueService.updateJob({
-        type: 'cron',
-        name: input.name,
-        expression: input.expr,
-      });
-    } else {
-      this.queueService.addJob({
-        type: 'cron',
-        name: input.name,
-        expression: input.expr,
-        pattern: `scheduler.fire.${input.name}`,
-      });
+    if (this.scheduler.hasJob(input.name)) {
+      // Remove and re-add to update the cron expression
+      this.scheduler.removeJob(input.name);
     }
+    this.scheduler.addCronJob(
+      input.name,
+      input.expr,
+      `scheduler.fire.${input.name}`,
+    );
 
     this.logger.info(`Cron job '${input.name}' registered: ${input.expr} -> ${input.subject}`);
     return job;
@@ -69,8 +67,8 @@ export class SchedulerService extends BaseService implements OnModuleInit {
 
   async remove(name: string): Promise<boolean> {
     const deleted = await this.repo.deleteByName(name);
-    if (this.queueService.hasJob(name)) {
-      this.queueService.removeJob(name);
+    if (this.scheduler.hasJob(name)) {
+      this.scheduler.removeJob(name);
     }
     return deleted;
   }
@@ -78,7 +76,7 @@ export class SchedulerService extends BaseService implements OnModuleInit {
   async list() {
     const dbJobs = await this.repo.findAll();
     return dbJobs.map(job => {
-      const runtime = this.queueService.getJob(job.name);
+      const runtime = this.scheduler.getJob(job.name);
       return {
         ...job,
         nextRun: runtime?.nextRun ?? null,

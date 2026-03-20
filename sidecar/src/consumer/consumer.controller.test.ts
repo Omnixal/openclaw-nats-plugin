@@ -54,6 +54,7 @@ describe('ConsumerController', () => {
     };
     mockRouterService = {
       findMatchingRoutes: mock(() => Promise.resolve([makeDefaultRoute()])),
+      recordDelivery: mock(() => Promise.resolve()),
     };
 
     service = new ConsumerController(mockPipeline, mockGatewayClient, mockPendingService, mockRouterService);
