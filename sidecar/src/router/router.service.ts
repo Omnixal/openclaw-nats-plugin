@@ -39,8 +39,12 @@ export class RouterService extends BaseService {
     return this.repo.findAll(filters);
   }
 
-  async subscribe(pattern: string, target: string = 'main', priority: number = 5): Promise<DbEventRoute> {
-    return this.repo.create({
+  async subscribe(
+    pattern: string,
+    target: string = 'main',
+    priority: number = 5,
+  ): Promise<{ route: DbEventRoute; created: boolean }> {
+    return this.repo.upsert({
       id: ulid(),
       pattern,
       target,
@@ -48,6 +52,10 @@ export class RouterService extends BaseService {
       priority,
       createdAt: new Date(),
     });
+  }
+
+  async recordDelivery(routeId: string, subject: string): Promise<void> {
+    await this.repo.recordDelivery(routeId, subject);
   }
 
   async unsubscribe(pattern: string): Promise<boolean> {

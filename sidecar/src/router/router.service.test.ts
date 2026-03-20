@@ -1,4 +1,4 @@
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, test, expect, mock, beforeEach } from 'bun:test';
 import { RouterService } from './router.service';
 import type { DbEventRoute } from '../db/schema';
 
@@ -8,9 +8,14 @@ function createService() {
     findAll: mock(() => Promise.resolve([])),
     findEnabled: mock(() => Promise.resolve([])),
     create: mock((route: any) => Promise.resolve(route)),
+    upsert: mock(() => Promise.resolve({
+      route: { id: '01ABC', pattern: 'agent.events.cron.>', target: 'main', priority: 5, enabled: true, createdAt: new Date(), lastDeliveredAt: null, lastEventSubject: null, deliveryCount: 0 },
+      created: true,
+    })),
     deleteById: mock(() => Promise.resolve(true)),
     deleteByPattern: mock(() => Promise.resolve(true)),
     count: mock(() => Promise.resolve(0)),
+    recordDelivery: mock(() => Promise.resolve()),
   };
   svc.logger = {
     info: mock(() => {}),
@@ -29,6 +34,9 @@ function makeRoute(overrides: Partial<DbEventRoute> = {}): DbEventRoute {
     enabled: true,
     priority: 5,
     createdAt: new Date(),
+    lastDeliveredAt: null,
+    lastEventSubject: null,
+    deliveryCount: 0,
     ...overrides,
   };
 }
@@ -88,6 +96,14 @@ describe('RouterService.matchPattern', () => {
   it('empty pattern matches empty subject', () => {
     expect(svc.matchPattern('', '')).toBe(true);
   });
+
+  test('agent.events patterns work correctly', () => {
+    expect(svc.matchPattern('agent.events.cron.>', 'agent.events.cron.daily')).toBe(true);
+    expect(svc.matchPattern('agent.events.cron.*', 'agent.events.cron.daily')).toBe(true);
+    expect(svc.matchPattern('agent.events.cron.*', 'agent.events.cron.a.b')).toBe(false);
+    expect(svc.matchPattern('agent.events.cron.daily', 'agent.events.cron.daily')).toBe(true);
+    expect(svc.matchPattern('agent.events.cron.daily', 'agent.events.cron.other')).toBe(false);
+  });
 });
 
 describe('RouterService.findMatchingRoutes', () => {
@@ -122,16 +138,44 @@ describe('RouterService.findMatchingRoutes', () => {
 });
 
 describe('RouterService.subscribe', () => {
-  it('calls repo.create with correct shape', async () => {
+  test('subscribe calls upsert and returns route with created flag', async () => {
+    const svc = createService() as any;
+    const result = await (svc as RouterService).subscribe('agent.events.cron.>', 'main', 5);
+    expect(svc.repo.upsert).toHaveBeenCalledTimes(1);
+    expect(result.created).toBe(true);
+    expect(result.route.pattern).toBe('agent.events.cron.>');
+  });
+
+  test('subscribe with existing pattern returns created=false', async () => {
+    const svc = createService() as any;
+    svc.repo.upsert = mock(() => Promise.resolve({
+      route: { id: '01ABC', pattern: 'agent.events.cron.>', target: 'main', priority: 8, enabled: true, createdAt: new Date(Date.now() - 10000), lastDeliveredAt: null, lastEventSubject: null, deliveryCount: 0 },
+      created: false,
+    }));
+
+    const result = await (svc as RouterService).subscribe('agent.events.cron.>', 'main', 8);
+    expect(result.created).toBe(false);
+  });
+
+  test('subscribe passes correct arguments to upsert', async () => {
     const svc = createService() as any;
     await (svc as RouterService).subscribe('orders.>', 'worker', 3);
-    expect(svc.repo.create).toHaveBeenCalledTimes(1);
-    const arg = (svc.repo.create as any).mock.calls[0][0];
+    expect(svc.repo.upsert).toHaveBeenCalledTimes(1);
+    const arg = (svc.repo.upsert as any).mock.calls[0][0];
     expect(arg.pattern).toBe('orders.>');
     expect(arg.target).toBe('worker');
     expect(arg.priority).toBe(3);
     expect(arg.enabled).toBe(true);
     expect(arg.id).toBeDefined();
+  });
+});
+
+describe('RouterService.recordDelivery', () => {
+  test('calls repo.recordDelivery with correct args', async () => {
+    const svc = createService() as any;
+    await (svc as RouterService).recordDelivery('route-1', 'agent.events.cron.daily');
+    expect(svc.repo.recordDelivery).toHaveBeenCalledTimes(1);
+    expect((svc.repo.recordDelivery as any).mock.calls[0]).toEqual(['route-1', 'agent.events.cron.daily']);
   });
 });
 

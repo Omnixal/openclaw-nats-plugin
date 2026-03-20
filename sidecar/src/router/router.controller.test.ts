@@ -16,7 +16,7 @@ function createController() {
     listRoutes: mock(() => Promise.resolve([makeRoute()])),
     status: mock(() => Promise.resolve({ configured: true, count: 1 })),
     subscribe: mock((pattern: string, target: string, priority: number) =>
-      Promise.resolve(makeRoute({ pattern, target, priority })),
+      Promise.resolve({ route: makeRoute({ pattern, target, priority }), created: true }),
     ),
     deleteById: mock(() => Promise.resolve(true)),
   };

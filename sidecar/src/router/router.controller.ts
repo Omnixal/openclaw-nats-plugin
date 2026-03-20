@@ -49,12 +49,12 @@ export class RouterController extends BaseController {
     if (!body.pattern.startsWith('agent.events.')) {
       return this.error('pattern must start with agent.events.', 400, 400);
     }
-    const route = await this.routerService.subscribe(
+    const { route, created } = await this.routerService.subscribe(
       body.pattern,
       body.target ?? 'main',
       body.priority ?? 5,
     );
-    return this.success(route);
+    return this.success({ ...route, created });
   }
 
   @Delete('/:id')
