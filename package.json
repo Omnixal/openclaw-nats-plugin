@@ -1,6 +1,6 @@
 {
   "name": "@omnixal/openclaw-nats-plugin",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "NATS JetStream event-driven plugin for OpenClaw",
   "license": "MIT",
   "type": "module",
@@ -9,8 +9,7 @@
     "nats-plugin": "./bin/cli.ts"
   },
   "scripts": {
-    "build:dashboard": "cd dashboard && bun run build",
-    "prepublishOnly": "bun run build:dashboard",
+    "build:dashboard": "cd dashboard && bun install --frozen-lockfile && bun run build",
     "nats": "docker run -d --name nats -p 4222:4222 nats:2.10-alpine -js"
   },
   "files": [
@@ -22,7 +21,9 @@
     "sidecar/",
     "skills/",
     "docker/",
-    "dashboard/dist/",
+    "dashboard/",
+    "!dashboard/node_modules",
+    "!dashboard/dist",
     "openclaw.plugin.json",
     "PLUGIN.md",
     "!**/*.test.ts",
