@@ -10,6 +10,8 @@
   import RoutesPanel from '$lib/RoutesPanel.svelte';
   import CronPanel from '$lib/CronPanel.svelte';
   import MetricsPanel from '$lib/MetricsPanel.svelte';
+  import ThemeToggle from '$lib/ThemeToggle.svelte';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 
   let health: HealthStatus | null = $state(null);
   let pending: PendingEvent[] = $state([]);
@@ -53,19 +55,23 @@
   });
 </script>
 
-<main class="min-h-screen bg-background p-6 max-w-5xl mx-auto">
+<main class="min-h-screen bg-background p-6 max-w-5xl mx-auto" style="animation: rise 0.3s cubic-bezier(0.16, 1, 0.3, 1)">
   <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold">NATS Dashboard</h1>
-    <button
-      class="text-sm text-muted-foreground hover:text-foreground"
-      onclick={refresh}
-    >
-      Refresh
-    </button>
+    <h1 class="text-2xl font-bold text-foreground tracking-tight">NATS Dashboard</h1>
+    <div class="flex items-center gap-3">
+      <button
+        class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
+        onclick={refresh}
+      >
+        <RefreshCw size={14} />
+        Refresh
+      </button>
+      <ThemeToggle />
+    </div>
   </div>
 
   {#if error}
-    <div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive mb-4">
+    <div class="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive mb-4">
       {error}
     </div>
   {/if}
@@ -73,12 +79,12 @@
   <div class="space-y-6">
     <HealthCards {health} />
 
-    <div class="flex gap-1 border-b">
+    <div class="flex gap-1 border-b border-border">
       {#each tabs as tab}
         <button
-          class="px-4 py-2 text-sm font-medium transition-colors {activeTab === tab.id
+          class="px-4 py-2.5 text-sm font-medium transition-all {activeTab === tab.id
             ? 'border-b-2 border-primary text-foreground'
-            : 'text-muted-foreground hover:text-foreground'}"
+            : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'}"
           onclick={() => activeTab = tab.id}
         >
           {tab.label}
