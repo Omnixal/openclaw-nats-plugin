@@ -1,7 +1,7 @@
 import {
   Controller, Get, Post, Patch, Delete,
   Body, Param, BaseController,
-  UseMiddleware, Subscribe,
+  UseMiddleware, Subscribe, OnQueueReady,
   type Message,
   type OneBunResponse,
 } from '@onebun/core';
@@ -14,6 +14,11 @@ import { createCronBodySchema, type CreateCronBody } from '../validation/schemas
 export class SchedulerController extends BaseController {
   constructor(private scheduler: SchedulerService) {
     super();
+  }
+
+  @OnQueueReady()
+  async onQueueReady(): Promise<void> {
+    await this.scheduler.restoreJobs();
   }
 
   @Post()

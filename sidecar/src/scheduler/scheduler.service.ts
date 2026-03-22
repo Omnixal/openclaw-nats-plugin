@@ -1,4 +1,4 @@
-import { Service, BaseService, QueueService, OnModuleInit } from '@onebun/core';
+import { Service, BaseService, QueueService } from '@onebun/core';
 import { SchedulerRepository } from './scheduler.repository';
 import { PublisherService } from '../publisher/publisher.service';
 import { ulid } from 'ulid';
@@ -12,7 +12,7 @@ interface AddJobInput {
 }
 
 @Service()
-export class SchedulerService extends BaseService implements OnModuleInit {
+export class SchedulerService extends BaseService {
   constructor(
     private repo: SchedulerRepository,
     private queueService: QueueService,
@@ -25,7 +25,7 @@ export class SchedulerService extends BaseService implements OnModuleInit {
     return this.queueService.getScheduler();
   }
 
-  async onModuleInit(): Promise<void> {
+  async restoreJobs(): Promise<void> {
     const jobs = await this.repo.findAllEnabled();
     for (const job of jobs) {
       this.scheduler.addCronJob(
