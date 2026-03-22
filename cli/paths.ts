@@ -9,6 +9,7 @@ export const DATA_DIR = join(PLUGIN_DIR, 'data');
 export const JETSTREAM_DIR = join(DATA_DIR, 'jetstream');
 export const NATS_SERVER_BIN = join(BIN_DIR, 'nats-server');
 export const NATS_CONF = join(PLUGIN_DIR, 'nats-server.conf');
+export const DASHBOARD_DIR = join(PLUGIN_DIR, 'dashboard');
 export const DOCKER_DIR = join(PLUGIN_DIR, 'docker');
 export const OPENCLAW_ENV = join(OPENCLAW_DIR, '.env');
 export const STATE_FILE = join(PLUGIN_DIR, 'state.json');

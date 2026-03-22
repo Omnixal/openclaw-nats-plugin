@@ -1,11 +1,17 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const ROUTE_PREFIX = '/nats-dashboard';
-const DIST_DIR = path.resolve(__dirname, '../../dashboard/dist');
 const SIDECAR_URL = process.env.NATS_SIDECAR_URL || 'http://127.0.0.1:3104';
 const API_KEY = process.env.NATS_PLUGIN_API_KEY || 'dev-nats-plugin-key';
+
+// Stable location (copied during setup) takes priority over in-package dist
+const STABLE_DIST = path.join(homedir(), '.openclaw', 'nats-plugin', 'dashboard');
+const PACKAGE_DIST = path.resolve(__dirname, '../../dashboard/dist');
+const DIST_DIR = existsSync(path.join(STABLE_DIST, 'index.html')) ? STABLE_DIST : PACKAGE_DIST;
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -124,7 +130,7 @@ async function serveStatic(subPath: string, res: ServerResponse): Promise<boolea
       res.end(indexHtml);
     } catch {
       res.statusCode = 404;
-      res.end('Dashboard not built. Run: cd openclaw-nats-plugin/dashboard && bun run build');
+      res.end('Dashboard not built. Run: npx @omnixal/openclaw-nats-plugin setup');
     }
   }
   return true;

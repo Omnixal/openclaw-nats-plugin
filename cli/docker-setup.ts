@@ -1,8 +1,41 @@
 import { mkdirSync, cpSync, writeFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
-import { PLUGIN_DIR, DOCKER_DIR, STATE_FILE, type PluginState } from './paths';
+import { PLUGIN_DIR, DOCKER_DIR, DASHBOARD_DIR, STATE_FILE, type PluginState } from './paths';
 import { generateApiKey, writeEnvVariables } from './env-writer';
+
+/**
+ * Try to copy dashboard dist into a running OpenClaw container's volume.
+ * This handles the case where setup runs on the host but OpenClaw is in Docker.
+ */
+function copyDashboardToContainer(dashboardDir: string): void {
+  if (!existsSync(join(dashboardDir, 'index.html'))) return;
+
+  const candidates = ['openclaw-gateway', 'openclaw-cli'];
+  for (const container of candidates) {
+    try {
+      const status = execFileSync(
+        'docker', ['inspect', '--format={{.State.Running}}', container],
+        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      ).trim();
+      if (status !== 'true') continue;
+
+      const home = execFileSync(
+        'docker', ['exec', container, 'sh', '-c', 'echo $HOME'],
+        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      ).trim();
+
+      const remotePath = `${home}/.openclaw/nats-plugin/dashboard`;
+      execFileSync('docker', ['exec', container, 'mkdir', '-p', remotePath]);
+      execFileSync('docker', ['cp', `${dashboardDir}/.`, `${container}:${remotePath}/`]);
+      console.log(`Dashboard copied into container '${container}' at ${remotePath}`);
+      return;
+    } catch {
+      // Container not found or not running, try next
+    }
+  }
+  console.log('Note: No running OpenClaw container found. Dashboard will be served after setup runs inside the container.');
+}
 
 export async function dockerSetup(): Promise<void> {
   console.log('Setting up NATS plugin (Docker mode)...\n');
@@ -40,7 +73,10 @@ export async function dockerSetup(): Promise<void> {
     NATS_SERVERS: 'nats://127.0.0.1:4222',
   });
 
-  // 5. Save state
+  // 5. Copy dashboard dist into OpenClaw container (host→container bridge)
+  copyDashboardToContainer(DASHBOARD_DIR);
+
+  // 6. Save state
   const state: PluginState = {
     runtime: 'docker',
     installedAt: new Date().toISOString(),
