@@ -12,12 +12,6 @@ export function buildDashboard(): void {
   const dashboardDir = join(PLUGIN_ROOT, 'dashboard');
   const stableDist = DASHBOARD_DIR; // ~/.openclaw/nats-plugin/dashboard/
 
-  // Already installed to stable location
-  if (existsSync(join(stableDist, 'index.html'))) {
-    console.log('Dashboard already built, skipping.');
-    return;
-  }
-
   if (!existsSync(join(dashboardDir, 'package.json'))) {
     console.warn('Warning: dashboard source not found, skipping build.');
     return;
