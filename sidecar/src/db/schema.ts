@@ -55,3 +55,20 @@ export const cronJobs = sqliteTable('cron_jobs', {
 
 export type DbCronJob = typeof cronJobs.$inferSelect;
 export type NewCronJob = typeof cronJobs.$inferInsert;
+
+export const executionLogs = sqliteTable('execution_logs', {
+  id:         text('id').primaryKey(),
+  entityType: text('entity_type').notNull(), // 'route' | 'cron'
+  entityId:   text('entity_id').notNull(),
+  action:     text('action').notNull(), // 'delivery' | 'fire' | 'error' | 'skip'
+  subject:    text('subject').notNull(),
+  detail:     text('detail'), // nullable JSON — error or meta
+  success:    integer('success', { mode: 'boolean' }).notNull().default(true),
+  createdAt:  integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  index('execution_logs_entity_idx').on(table.entityType, table.entityId),
+  index('execution_logs_created_at_idx').on(table.createdAt),
+]);
+
+export type DbExecutionLog = typeof executionLogs.$inferSelect;
+export type NewExecutionLog = typeof executionLogs.$inferInsert;

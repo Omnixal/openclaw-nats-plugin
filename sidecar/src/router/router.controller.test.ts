@@ -31,7 +31,7 @@ function createController() {
 describe('RouterController.getRoutes', () => {
   it('returns list of routes', async () => {
     const { ctrl } = createController();
-    const res = await ctrl.getRoutes({}) as any;
+    const res = await ctrl.getRoutes() as any;
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.result).toHaveLength(1);
@@ -39,7 +39,7 @@ describe('RouterController.getRoutes', () => {
 
   it('passes filters to service', async () => {
     const { ctrl, mockRouterService } = createController();
-    await ctrl.getRoutes({ pattern: 'agent.events.>', target: 'worker' });
+    await ctrl.getRoutes('agent.events.>', 'worker');
     expect(mockRouterService.listRoutes).toHaveBeenCalledWith({
       pattern: 'agent.events.>',
       target: 'worker',

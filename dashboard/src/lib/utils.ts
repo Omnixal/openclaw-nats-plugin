@@ -27,3 +27,11 @@ export function formatDuration(ms: number | null): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
   return `${Math.floor(seconds / 3600)}h`;
 }
+
+export function isValidAgentSubject(subject: string): boolean {
+  if (!subject.startsWith('agent.events.')) return false;
+  const rest = subject.slice('agent.events.'.length);
+  if (rest.length === 0) return false;
+  if (rest.endsWith('.')) return false;
+  return true;
+}

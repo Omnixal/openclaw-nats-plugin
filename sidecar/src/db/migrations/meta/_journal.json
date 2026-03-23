@@ -36,6 +36,13 @@
       "when": 1773965190659,
       "tag": "0004_familiar_zaladane",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1774274478663,
+      "tag": "0005_strong_supernaut",
+      "breakpoints": true
     }
   ]
 }

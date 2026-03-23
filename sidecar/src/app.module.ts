@@ -11,6 +11,7 @@ import { HealthModule } from './health/health.module';
 import { RouterModule } from './router/router.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { LogModule } from './logs/log.module';
 
 const config = getConfig<AppConfig>(envSchema);
 
@@ -35,6 +36,7 @@ const config = getConfig<AppConfig>(envSchema);
     RouterModule,
     SchedulerModule,
     MetricsModule,
+    LogModule,
   ],
 })
 export class AppModule {}

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Body,
   Param,
@@ -12,7 +13,11 @@ import {
 } from '@onebun/core';
 import { RouterService } from './router.service';
 import { ApiKeyMiddleware } from '../auth/api-key.middleware';
-import { createRouteBodySchema, type CreateRouteBody } from '../validation/schemas';
+import {
+  createRouteBodySchema, type CreateRouteBody,
+  updateRouteBodySchema, type UpdateRouteBody,
+  isValidAgentSubject,
+} from '../validation/schemas';
 
 @Controller('/api/routes')
 @UseMiddleware(ApiKeyMiddleware)
@@ -32,8 +37,10 @@ export class RouterController extends BaseController {
     const routes = await this.routerService.listRoutes();
     const now = Date.now();
     const result = routes.map(r => ({
+      id: r.id,
       pattern: r.pattern,
       target: r.target,
+      priority: r.priority,
       enabled: r.enabled,
       lastDeliveredAt: r.lastDeliveredAt?.toISOString() ?? null,
       lastEventSubject: r.lastEventSubject ?? null,
@@ -44,18 +51,21 @@ export class RouterController extends BaseController {
   }
 
   @Get()
-  async getRoutes(@Query() query: Record<string, string>): Promise<OneBunResponse> {
+  async getRoutes(
+    @Query('pattern') pattern?: string,
+    @Query('target') target?: string,
+  ): Promise<OneBunResponse> {
     const filters: { pattern?: string; target?: string } = {};
-    if (query?.pattern) filters.pattern = query.pattern;
-    if (query?.target) filters.target = query.target;
+    if (pattern) filters.pattern = pattern;
+    if (target) filters.target = target;
     const routes = await this.routerService.listRoutes(filters);
     return this.success(routes);
   }
 
   @Post()
   async createRoute(@Body(createRouteBodySchema) body: CreateRouteBody): Promise<OneBunResponse> {
-    if (!body.pattern.startsWith('agent.events.')) {
-      return this.error('pattern must start with agent.events.', 400, 400);
+    if (!isValidAgentSubject(body.pattern)) {
+      return this.error('pattern must start with "agent.events." followed by at least one token and must not end with "."', 400, 400);
     }
     const { route, created } = await this.routerService.subscribe(
       body.pattern,
@@ -63,6 +73,18 @@ export class RouterController extends BaseController {
       body.priority ?? 5,
     );
     return this.success({ ...route, created });
+  }
+
+  @Patch('/:id')
+  async updateRoute(
+    @Param('id') id: string,
+    @Body(updateRouteBodySchema) body: UpdateRouteBody,
+  ): Promise<OneBunResponse> {
+    const updated = await this.routerService.updateById(id, body);
+    if (!updated) {
+      return this.error('Route not found', 404, 404);
+    }
+    return this.success(updated);
   }
 
   @Delete('/:id')

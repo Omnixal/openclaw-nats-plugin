@@ -35,3 +35,30 @@ export const createCronBodySchema = type({
 });
 
 export type CreateCronBody = typeof createCronBodySchema.infer;
+
+export const updateRouteBodySchema = type({
+  'target?': 'string',
+  'priority?': 'number',
+  'enabled?': 'boolean',
+});
+
+export type UpdateRouteBody = typeof updateRouteBodySchema.infer;
+
+export const updateCronBodySchema = type({
+  'cron?': 'string',
+  'subject?': 'string',
+  'payload?': 'unknown',
+  'timezone?': 'string',
+  'enabled?': 'boolean',
+});
+
+export type UpdateCronBody = typeof updateCronBodySchema.infer;
+
+/** Validate that subject has content after 'agent.events.' prefix and doesn't end with '.' */
+export function isValidAgentSubject(subject: string): boolean {
+  if (!subject.startsWith('agent.events.')) return false;
+  const rest = subject.slice('agent.events.'.length);
+  if (rest.length === 0) return false;
+  if (rest.endsWith('.')) return false;
+  return true;
+}

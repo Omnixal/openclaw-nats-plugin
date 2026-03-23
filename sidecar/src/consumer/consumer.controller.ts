@@ -4,6 +4,7 @@ import { GatewayClientService } from '../gateway/gateway-client.service';
 import { PendingService } from '../pending/pending.service';
 import { RouterService } from '../router/router.service';
 import { MetricsService } from '../metrics/metrics.service';
+import { LogService } from '../logs/log.service';
 import type { NatsEventEnvelope } from '../publisher/envelope';
 
 @Controller('/consumer')
@@ -14,6 +15,7 @@ export class ConsumerController extends BaseController {
     private pendingService: PendingService,
     private routerService: RouterService,
     private metrics: MetricsService,
+    private logService: LogService,
   ) {
     super();
   }
@@ -49,18 +51,24 @@ export class ConsumerController extends BaseController {
       // Deliver to each matching target
       if (this.gatewayClient.isAlive()) {
         for (const route of routes) {
-          await this.gatewayClient.inject({
-            target: route.target,
-            message: this.formatMessage(envelope),
-            metadata: {
-              source: 'nats',
-              eventId: envelope.id,
-              subject: envelope.subject,
-              priority: (ctx.enrichments['priority'] as number) ?? envelope.meta?.priority ?? 5,
-            },
-          });
-          await this.routerService.recordDelivery(route.id, envelope.subject);
-          this.metrics.recordConsume(envelope.subject);
+          try {
+            await this.gatewayClient.inject({
+              target: route.target,
+              message: this.formatMessage(envelope),
+              metadata: {
+                source: 'nats',
+                eventId: envelope.id,
+                subject: envelope.subject,
+                priority: (ctx.enrichments['priority'] as number) ?? envelope.meta?.priority ?? 5,
+              },
+            });
+            await this.routerService.recordDelivery(route.id, envelope.subject);
+            this.metrics.recordConsume(envelope.subject);
+            await this.logService.logDelivery(route.id, envelope.subject, JSON.stringify({ eventId: envelope.id, target: route.target }));
+          } catch (routeErr) {
+            await this.logService.logError('route', route.id, envelope.subject, routeErr);
+            throw routeErr;
+          }
         }
         await message.ack();
       } else {

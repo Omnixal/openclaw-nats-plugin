@@ -39,10 +39,17 @@ describe('SchedulerService', () => {
       publish: mock(() => Promise.resolve()),
     };
 
+    const mockLogService = {
+      logDelivery: mock(() => Promise.resolve()),
+      logCronFire: mock(() => Promise.resolve()),
+      logError: mock(() => Promise.resolve()),
+    };
+
     const { instance } = createTestService(SchedulerService, {
-      deps: [mockRepo, mockQueueService, mockPublisher],
+      deps: [mockRepo, mockQueueService, mockPublisher, mockLogService],
     });
     service = instance;
+    service.markQueueReady();
   });
 
   test('add creates job in DB and registers with QueueScheduler', async () => {

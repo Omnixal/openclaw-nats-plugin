@@ -36,7 +36,14 @@ Setup auto-detects your runtime (Bun or Docker) and configures NATS server + sid
 
 ## Dashboard
 
-Built-in web UI at `/nats-dashboard` on the Gateway. Shows NATS/Gateway/sidecar health, pending event queue, and configuration. Auto-refreshes every 5 seconds.
+Built-in web UI at `/nats-dashboard` on the Gateway. Auto-refreshes every 5 seconds.
+
+- **Health** — NATS server, Gateway, sidecar connectivity, uptime, pending queue size
+- **Routes** — create, edit, delete event routing rules (pattern matching with `*` and `>` wildcards, priority, target session)
+- **Cron Jobs** — create, edit, delete, pause/resume, run-now; shows next run time and last run status
+- **Execution Logs** — per-route and per-cron delivery/fire/error logs with pagination and filters (status, action, subject)
+- **Metrics** — per-subject publish/consume counters
+- **Pending Events** — queued inbound events with priority and age
 
 ## Architecture
 
@@ -52,6 +59,10 @@ OpenClaw Gateway
 NATS Sidecar (OneBun service, port 3104)
   ├── Publisher   → receives events via HTTP, publishes to JetStream
   ├── Consumer    → subscribes to JetStream, delivers to Gateway
+  ├── Router      → pattern-based event routing (exact, *, >)
+  ├── Scheduler   → cron job management with persistent SQLite storage
+  ├── Logs        → execution log recording (deliveries, fires, errors)
+  ├── Metrics     → per-subject publish/consume counters
   ├── Dedup       → idempotency key deduplication
   ├── Filter      → subject allowlist/blocklist
   ├── Pending     → SQLite queue for inbound events

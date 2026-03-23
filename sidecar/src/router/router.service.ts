@@ -54,6 +54,10 @@ export class RouterService extends BaseService {
     });
   }
 
+  async updateById(id: string, fields: { target?: string; priority?: number; enabled?: boolean }): Promise<DbEventRoute | null> {
+    return this.repo.updateById(id, fields);
+  }
+
   async recordDelivery(routeId: string, subject: string): Promise<void> {
     await this.repo.recordDelivery(routeId, subject);
   }

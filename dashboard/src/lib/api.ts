@@ -76,6 +76,20 @@ export async function createRoute(body: {
   });
 }
 
+export interface UpdateRouteBody {
+  target?: string;
+  priority?: number;
+  enabled?: boolean;
+}
+
+export async function updateRoute(id: string, body: UpdateRouteBody): Promise<EventRoute> {
+  return fetchJSON(`/routes/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function deleteRoute(id: string): Promise<void> {
   await fetchJSON(`/routes/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
@@ -114,6 +128,22 @@ export async function createCronJob(body: {
   });
 }
 
+export interface UpdateCronBody {
+  cron?: string;
+  subject?: string;
+  payload?: unknown;
+  timezone?: string;
+  enabled?: boolean;
+}
+
+export async function updateCronJob(name: string, body: UpdateCronBody): Promise<CronJob> {
+  return fetchJSON(`/cron/${encodeURIComponent(name)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function deleteCronJob(name: string): Promise<void> {
   await fetchJSON(`/cron/${encodeURIComponent(name)}`, { method: 'DELETE' });
 }
@@ -138,4 +168,51 @@ export interface SubjectMetric {
 
 export async function getMetrics(): Promise<SubjectMetric[]> {
   return fetchJSON('/metrics');
+}
+
+// ── Execution Logs ──────────────────────────────────────────────────
+
+export interface ExecutionLog {
+  id: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  subject: string;
+  detail: string | null;
+  success: boolean;
+  createdAt: number;
+}
+
+export interface LogFilters {
+  success?: boolean;
+  action?: string;
+  subject?: string;
+}
+
+export interface LogsResult {
+  items: ExecutionLog[];
+  total: number;
+}
+
+export async function getLogs(
+  entityType: string,
+  entityId: string,
+  limit: number = 50,
+  offset: number = 0,
+  filters?: LogFilters,
+): Promise<LogsResult> {
+  const params = new URLSearchParams({
+    entityType,
+    entityId,
+    limit: String(limit),
+    offset: String(offset),
+  });
+  if (filters?.success !== undefined) params.set('success', String(filters.success));
+  if (filters?.action) params.set('action', filters.action);
+  if (filters?.subject) params.set('subject', filters.subject);
+  return fetchJSON(`/logs?${params}`);
+}
+
+export async function getRecentLogs(limit: number = 20): Promise<ExecutionLog[]> {
+  return fetchJSON(`/logs/recent?limit=${limit}`);
 }

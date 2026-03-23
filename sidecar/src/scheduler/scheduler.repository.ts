@@ -44,6 +44,14 @@ export class SchedulerRepository extends BaseService {
     return result;
   }
 
+  async updateByName(name: string, fields: Partial<Pick<DbCronJob, 'expr' | 'subject' | 'payload' | 'timezone' | 'enabled'>>): Promise<DbCronJob | null> {
+    const [result] = await this.db.update(cronJobs)
+      .set(fields)
+      .where(eq(cronJobs.name, name))
+      .returning();
+    return result ?? null;
+  }
+
   async deleteByName(name: string): Promise<boolean> {
     const result = await this.db.delete(cronJobs)
       .where(eq(cronJobs.name, name)).returning();

@@ -49,6 +49,14 @@ export class RouterRepository extends BaseService {
     return { route: result, created };
   }
 
+  async updateById(id: string, fields: Partial<Pick<DbEventRoute, 'target' | 'priority' | 'enabled'>>): Promise<DbEventRoute | null> {
+    const [result] = await this.db.update(eventRoutes)
+      .set(fields)
+      .where(eq(eventRoutes.id, id))
+      .returning();
+    return result ?? null;
+  }
+
   async recordDelivery(routeId: string, subject: string): Promise<void> {
     await this.db.update(eventRoutes)
       .set({

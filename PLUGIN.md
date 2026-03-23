@@ -68,14 +68,17 @@ Plugin hooks make lightweight HTTP calls to a NATS sidecar service for event pub
 
 ## Dashboard
 
-The plugin includes a web dashboard at `/nats-dashboard` on the Gateway.
+The plugin includes a web dashboard at `/nats-dashboard` on the Gateway. Auto-refreshes every 5 seconds. API calls are proxied through the Gateway (no direct sidecar access needed from the browser).
 
-It shows:
-- **Health status** — NATS server, Gateway WebSocket, and sidecar connectivity
-- **Pending events** — queued inbound events with priority and age
-- **Configuration** — streams, consumer name, dedup TTL
+Features:
+- **Health** — NATS server, Gateway, sidecar connectivity, uptime, pending queue size, stream configuration
+- **Routes** — full CRUD for event routing rules; pattern matching with `*` and `>` wildcards, priority, target session, delivery counters and lag
+- **Cron Jobs** — full CRUD, pause/resume, run-now; shows next run time, last run status, timezone support
+- **Execution Logs** — per-route and per-cron logs (deliveries, fires, errors) with pagination and filters (status, action type, subject substring)
+- **Metrics** — per-subject publish/consume counters with last activity timestamps
+- **Pending Events** — queued inbound events with priority and age
 
-The dashboard auto-refreshes every 5 seconds. API calls are proxied through the Gateway (no direct sidecar access needed from the browser).
+Click any route or cron job row to open a detail modal with editing and a logs tab.
 
 Build the dashboard (required after install):
 

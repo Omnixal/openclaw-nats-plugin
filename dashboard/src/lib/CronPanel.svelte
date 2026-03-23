@@ -3,14 +3,17 @@
   import * as Table from '$lib/components/ui/table';
   import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
+  import { Modal } from '$lib/components/ui/modal';
+  import LogsPanel from '$lib/LogsPanel.svelte';
   import {
     type CronJob,
     createCronJob,
     deleteCronJob,
     toggleCronJob,
     runCronJobNow,
+    updateCronJob,
   } from '$lib/api';
-  import { relativeAge } from '$lib/utils';
+  import { relativeAge, isValidAgentSubject } from '$lib/utils';
 
   interface Props {
     jobs: CronJob[];
@@ -19,6 +22,7 @@
 
   let { jobs, onRefresh }: Props = $props();
 
+  // Create form
   let showForm = $state(false);
   let formName = $state('');
   let formCron = $state('0 9 * * *');
@@ -28,6 +32,17 @@
   let formError: string | null = $state(null);
   let actionError: string | null = $state(null);
   let loading = $state(false);
+
+  // Modal state
+  let selectedJob: CronJob | null = $state(null);
+  let activeTab: 'details' | 'logs' = $state('details');
+  let editCron = $state('');
+  let editSubject = $state('');
+  let editPayload = $state('');
+  let editTimezone = $state('');
+  let editEnabled = $state(true);
+  let editError: string | null = $state(null);
+  let showDeleteConfirm = $state(false);
 
   function formatNextRun(iso: string): string {
     try {
@@ -55,8 +70,8 @@
       return;
     }
 
-    if (!formSubject.startsWith('agent.events.')) {
-      formError = 'Subject must start with agent.events.';
+    if (!isValidAgentSubject(formSubject)) {
+      formError = 'Subject must start with "agent.events." followed by at least one token and must not end with "."';
       return;
     }
 
@@ -86,36 +101,208 @@
     }
   }
 
-  async function handleToggle(name: string) {
+  function openJobModal(job: CronJob) {
+    selectedJob = job;
+    activeTab = 'details';
+    editCron = job.expr;
+    editSubject = job.subject;
+    editPayload = job.payload ? JSON.stringify(job.payload, null, 2) : '{}';
+    editTimezone = job.timezone;
+    editEnabled = job.enabled;
+    editError = null;
+    showDeleteConfirm = false;
+  }
+
+  function closeModal() {
+    selectedJob = null;
+    editError = null;
+    showDeleteConfirm = false;
+  }
+
+  async function handleSave() {
+    if (!selectedJob) return;
+
+    if (!isValidAgentSubject(editSubject)) {
+      editError = 'Subject must start with "agent.events." followed by at least one token';
+      return;
+    }
+
+    let parsedPayload: unknown;
+    try {
+      parsedPayload = JSON.parse(editPayload);
+    } catch {
+      editError = 'Invalid JSON payload';
+      return;
+    }
+
+    try {
+      editError = null;
+      loading = true;
+      await updateCronJob(selectedJob.name, {
+        cron: editCron,
+        subject: editSubject,
+        payload: parsedPayload,
+        timezone: editTimezone,
+        enabled: editEnabled,
+      });
+      closeModal();
+      onRefresh();
+    } catch (e: any) {
+      editError = e.message;
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleToggle(name: string, e: MouseEvent) {
+    e.stopPropagation();
     try {
       actionError = null;
       await toggleCronJob(name);
       onRefresh();
-    } catch (e: any) {
-      actionError = e.message;
+    } catch (err: any) {
+      actionError = err.message;
     }
   }
 
-  async function handleRun(name: string) {
+  async function handleRun(name: string, e: MouseEvent) {
+    e.stopPropagation();
     try {
       actionError = null;
       await runCronJobNow(name);
       onRefresh();
-    } catch (e: any) {
-      actionError = e.message;
+    } catch (err: any) {
+      actionError = err.message;
     }
   }
 
-  async function handleDelete(name: string) {
+  async function handleDelete() {
+    if (!selectedJob) return;
     try {
-      actionError = null;
-      await deleteCronJob(name);
+      editError = null;
+      loading = true;
+      await deleteCronJob(selectedJob.name);
+      closeModal();
       onRefresh();
     } catch (e: any) {
-      actionError = e.message;
+      editError = e.message;
+    } finally {
+      loading = false;
     }
   }
 </script>
+
+{#if selectedJob}
+  <Modal
+    open={true}
+    title="Cron Job: {selectedJob.name}"
+    onClose={closeModal}
+  >
+    {#snippet children()}
+      <!-- Tabs -->
+      <div class="flex gap-1 border-b mb-4">
+        <button
+          class="px-3 py-1.5 text-sm font-medium border-b-2 transition-colors {activeTab === 'details' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+          onclick={() => (activeTab = 'details')}
+        >Details</button>
+        <button
+          class="px-3 py-1.5 text-sm font-medium border-b-2 transition-colors {activeTab === 'logs' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+          onclick={() => (activeTab = 'logs')}
+        >Logs</button>
+      </div>
+
+      {#if activeTab === 'details'}
+        {#if editError}
+          <div class="rounded-md bg-destructive/10 p-2 text-xs text-destructive mb-3">{editError}</div>
+        {/if}
+
+        {#if showDeleteConfirm}
+          <div class="rounded-md border border-destructive/50 bg-destructive/5 p-4 space-y-3">
+            <p class="text-sm">Are you sure you want to delete cron job <span class="font-mono font-semibold">{selectedJob.name}</span>?</p>
+            <p class="text-xs text-muted-foreground">This action cannot be undone.</p>
+            <div class="flex gap-2">
+              <Button variant="destructive" size="sm" onclick={handleDelete} disabled={loading}>
+                {loading ? 'Deleting...' : 'Confirm Delete'}
+              </Button>
+              <Button variant="outline" size="sm" onclick={() => (showDeleteConfirm = false)}>Cancel</Button>
+            </div>
+          </div>
+        {:else}
+          <div class="space-y-3">
+            <div class="space-y-1">
+              <label class="text-xs text-muted-foreground" for="edit-cron">Cron Expression</label>
+              <input
+                id="edit-cron"
+                type="text"
+                bind:value={editCron}
+                class="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm font-mono"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs text-muted-foreground" for="edit-subject">Subject</label>
+              <input
+                id="edit-subject"
+                type="text"
+                bind:value={editSubject}
+                class="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm font-mono"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs text-muted-foreground" for="edit-payload">Payload (JSON)</label>
+              <textarea
+                id="edit-payload"
+                bind:value={editPayload}
+                rows="3"
+                class="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm font-mono"
+              ></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-1">
+                <label class="text-xs text-muted-foreground" for="edit-tz">Timezone</label>
+                <input
+                  id="edit-tz"
+                  type="text"
+                  bind:value={editTimezone}
+                  class="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                />
+              </div>
+              <div class="space-y-1">
+                <label for="edit-job-enabled" class="text-xs text-muted-foreground">Enabled</label>
+                <div class="flex items-center gap-2 pt-1">
+                  <input id="edit-job-enabled" type="checkbox" bind:checked={editEnabled} />
+                  <label for="edit-job-enabled" class="text-sm">{editEnabled ? 'Active' : 'Disabled'}</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="text-xs text-muted-foreground pt-2 space-y-1">
+              <div>Last run: <span class="font-medium text-foreground">{selectedJob.lastRunAt ? relativeAge(selectedJob.lastRunAt) : '\u2014'}</span></div>
+              <div>Next run: <span class="font-medium text-foreground">{selectedJob.nextRun ? formatNextRun(selectedJob.nextRun) : '\u2014'}</span></div>
+            </div>
+          </div>
+        {/if}
+      {:else}
+        <LogsPanel entityType="cron" entityId={selectedJob.id} />
+      {/if}
+    {/snippet}
+
+    {#snippet actions()}
+      {#if activeTab === 'details' && !showDeleteConfirm}
+        <div class="flex w-full justify-between">
+          <Button variant="ghost" size="sm" class="text-destructive" onclick={() => (showDeleteConfirm = true)}>
+            Delete
+          </Button>
+          <div class="flex gap-2">
+            <Button variant="outline" size="sm" onclick={closeModal}>Cancel</Button>
+            <Button size="sm" onclick={handleSave} disabled={loading}>
+              {loading ? 'Saving...' : 'Save'}
+            </Button>
+          </div>
+        </div>
+      {/if}
+    {/snippet}
+  </Modal>
+{/if}
 
 <Card.Root>
   <Card.Header class="pb-2">
@@ -207,12 +394,12 @@
             <Table.Head>Enabled</Table.Head>
             <Table.Head>Last Run</Table.Head>
             <Table.Head>Next Run</Table.Head>
-            <Table.Head class="w-40"></Table.Head>
+            <Table.Head class="w-32"></Table.Head>
           </Table.Row>
         </Table.Header>
         <Table.Body>
           {#each jobs as job}
-            <Table.Row>
+            <Table.Row class="cursor-pointer hover:bg-muted/50" onclick={() => openJobModal(job)}>
               <Table.Cell class="font-mono text-xs">{job.name}</Table.Cell>
               <Table.Cell class="font-mono">{job.expr}</Table.Cell>
               <Table.Cell class="font-mono text-xs">{job.subject}</Table.Cell>
@@ -223,26 +410,18 @@
                 </Badge>
               </Table.Cell>
               <Table.Cell class="text-xs text-muted-foreground">
-                {job.lastRunAt ? relativeAge(job.lastRunAt) : '—'}
+                {job.lastRunAt ? relativeAge(job.lastRunAt) : '\u2014'}
               </Table.Cell>
               <Table.Cell class="text-xs text-muted-foreground">
-                {job.nextRun ? formatNextRun(job.nextRun) : '—'}
+                {job.nextRun ? formatNextRun(job.nextRun) : '\u2014'}
               </Table.Cell>
               <Table.Cell>
                 <div class="flex gap-1">
-                  <Button variant="ghost" size="sm" onclick={() => handleToggle(job.name)}>
+                  <Button variant="ghost" size="sm" onclick={(e: MouseEvent) => handleToggle(job.name, e)}>
                     {job.enabled ? 'Pause' : 'Resume'}
                   </Button>
-                  <Button variant="outline" size="sm" onclick={() => handleRun(job.name)}>
+                  <Button variant="outline" size="sm" onclick={(e: MouseEvent) => handleRun(job.name, e)}>
                     Run
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    class="text-destructive"
-                    onclick={() => handleDelete(job.name)}
-                  >
-                    Delete
                   </Button>
                 </div>
               </Table.Cell>

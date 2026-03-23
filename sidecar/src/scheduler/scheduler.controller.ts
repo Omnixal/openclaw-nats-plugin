@@ -4,10 +4,18 @@ import {
   UseMiddleware, Subscribe, OnQueueReady,
   type Message,
   type OneBunResponse,
+  OnQueueError,
+  OnMessageReceived,
+  OnMessageProcessed,
+  OnMessageFailed,
 } from '@onebun/core';
 import { SchedulerService } from './scheduler.service';
 import { ApiKeyMiddleware } from '../auth/api-key.middleware';
-import { createCronBodySchema, type CreateCronBody } from '../validation/schemas';
+import {
+  createCronBodySchema, type CreateCronBody,
+  updateCronBodySchema, type UpdateCronBody,
+  isValidAgentSubject,
+} from '../validation/schemas';
 
 @Controller('/api/cron')
 @UseMiddleware(ApiKeyMiddleware)
@@ -18,13 +26,21 @@ export class SchedulerController extends BaseController {
 
   @OnQueueReady()
   async onQueueReady(): Promise<void> {
+    this.logger.info('Queue connected, starting scheduler');
+    this.scheduler.markQueueReady();
     await this.scheduler.restoreJobs();
+  }
+
+  @OnQueueError()
+  handleError(error: Error) {
+    this.logger.error('Queue error (publish stopped)', error);
+    this.scheduler.markQueueReady(false);
   }
 
   @Post()
   async createJob(@Body(createCronBodySchema) body: CreateCronBody): Promise<OneBunResponse> {
-    if (!body.subject.startsWith('agent.events.')) {
-      return this.error('subject must start with agent.events.', 400, 400);
+    if (!isValidAgentSubject(body.subject)) {
+      return this.error('subject must start with "agent.events." followed by at least one token and must not end with "."', 400, 400);
     }
     const job = await this.scheduler.add({
       name: body.name,
@@ -40,6 +56,19 @@ export class SchedulerController extends BaseController {
   async listJobs(): Promise<OneBunResponse> {
     const jobs = await this.scheduler.list();
     return this.success(jobs);
+  }
+
+  @Patch('/:name')
+  async updateJob(
+    @Param('name') name: string,
+    @Body(updateCronBodySchema) body: UpdateCronBody,
+  ): Promise<OneBunResponse> {
+    if (body.subject !== undefined && !isValidAgentSubject(body.subject)) {
+      return this.error('subject must start with "agent.events." followed by at least one token and must not end with "."', 400, 400);
+    }
+    const updated = await this.scheduler.update(name, body);
+    if (!updated) return this.error('Job not found', 404, 404);
+    return this.success(updated);
   }
 
   @Patch('/:name/toggle')
