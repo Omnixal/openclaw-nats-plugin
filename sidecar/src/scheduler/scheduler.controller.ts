@@ -92,7 +92,7 @@ export class SchedulerController extends BaseController {
     return this.success({ deleted: true });
   }
 
-  @Subscribe('scheduler.fire.*')
+  @Subscribe('scheduler.fire.*', { group: 'scheduler-handler' })
   async handleFire(message: Message<unknown>): Promise<void> {
     const jobName = message.pattern?.split('.').pop();
     if (jobName) {

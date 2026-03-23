@@ -13,7 +13,11 @@ export class PendingController extends BaseController {
   @Get('/:sessionKey')
   async fetchPending(@Param('sessionKey') sessionKey: string): Promise<OneBunResponse> {
     const events = await this.pendingService.fetchPending(sessionKey);
-    return this.success(events);
+    return this.success(events.map(e => ({
+      ...e,
+      createdAt: e.createdAt.getTime(),
+      deliveredAt: e.deliveredAt?.getTime() ?? null,
+    })));
   }
 
   @Post('/mark-delivered')

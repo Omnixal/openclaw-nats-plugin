@@ -26,16 +26,18 @@ export class ConsumerController extends BaseController {
     this.logger.info(`Queue connected, consuming as ${consumerName}`);
   }
 
-  @Subscribe('agent.events.>', {
+  @Subscribe('agent.events.#', {
     ackMode: 'manual',
     group: 'openclaw-main',
   })
   async handleInbound(message: Message<unknown>): Promise<void> {
     try {
       const envelope = this.extractEnvelope(message);
+      this.logger.info(`Inbound event: ${envelope.subject} (id=${envelope.id})`);
 
       const { result, ctx } = await this.pipeline.process(envelope);
       if (result === 'drop') {
+        this.logger.debug(`Event dropped by pipeline: ${envelope.id}`);
         await message.ack();
         return;
       }
@@ -43,10 +45,12 @@ export class ConsumerController extends BaseController {
       // Check routing rules
       const routes = await this.routerService.findMatchingRoutes(envelope.subject);
       if (routes.length === 0) {
+        this.logger.debug(`No matching routes for ${envelope.subject}`);
         // No route — just ack (event is in JetStream for audit)
         await message.ack();
         return;
       }
+      this.logger.info(`Matched ${routes.length} route(s) for ${envelope.subject}`);
 
       // Deliver to each matching target
       if (this.gatewayClient.isAlive()) {

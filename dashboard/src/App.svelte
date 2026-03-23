@@ -88,6 +88,9 @@
           onclick={() => activeTab = tab.id}
         >
           {tab.label}
+          {#if tab.id === 'pending' && pending.length > 0}
+            <span class="ml-1.5 inline-flex items-center justify-center rounded-full bg-destructive/15 text-destructive text-xs font-semibold min-w-5 h-5 px-1.5">{pending.length}</span>
+          {/if}
         </button>
       {/each}
     </div>
