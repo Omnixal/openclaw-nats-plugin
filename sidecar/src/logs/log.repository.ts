@@ -56,7 +56,7 @@ export class LogRepository extends BaseService {
       .select({ count: sql<number>`count(*)` })
       .from(executionLogs)
       .where(this.buildWhereConditions(filters));
-    return result[0]?.count ?? 0;
+    return (result[0] as unknown as { count: number })?.count ?? 0;
   }
 
   async findRecent(limit: number = 20): Promise<DbExecutionLog[]> {

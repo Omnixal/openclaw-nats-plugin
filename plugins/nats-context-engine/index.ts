@@ -78,6 +78,52 @@ export default function (api: any) {
     }, { priority: 8 });
   }, { priority: 99 });
 
+  // ── Gateway stop ───────────────────────────────────────────────
+
+  api.on('gateway_stop', (event: any) => {
+    void publishToSidecar('agent.events.gateway.stopped', {
+      reason: event.reason,
+      timestamp: new Date().toISOString(),
+    });
+  }, { priority: 99 });
+
+  // ── Message received ─────────────────────────────────────────────
+
+  api.on('message_received', (event: any) => {
+    void publishToSidecar('agent.events.message.received', {
+      from: event.from,
+      content: event.content,
+      metadata: event.metadata,
+      timestamp: new Date().toISOString(),
+    });
+  }, { priority: 99 });
+
+  // ── LLM output ───────────────────────────────────────────────────
+
+  api.on('llm_output', (event: any) => {
+    void publishToSidecar('agent.events.llm.output', {
+      sessionKey: event.sessionId,
+      runId: event.runId,
+      provider: event.provider,
+      model: event.model,
+      usage: event.usage,
+      timestamp: new Date().toISOString(),
+    });
+  }, { priority: 99 });
+
+  // ── Subagent spawning ────────────────────────────────────────────
+
+  api.on('subagent_spawning', (event: any) => {
+    void publishToSidecar('agent.events.subagent.spawning', {
+      childSessionKey: event.childSessionKey,
+      agentId: event.agentId,
+      label: event.label,
+      mode: event.mode,
+      timestamp: new Date().toISOString(),
+    });
+    return { status: 'ok' };
+  }, { priority: 99 });
+
   // ── Agent Tools ─────────────────────────────────────────────────
 
   const SIDECAR_URL = process.env.NATS_SIDECAR_URL || 'http://127.0.0.1:3104';

@@ -3,14 +3,11 @@ import path from 'node:path';
 import { loadOrCreateIdentity, publicKeyToBase64Url, signChallenge, type DeviceIdentity } from './device-identity';
 
 export interface GatewayInjectPayload {
-  target: string;
+  /** OpenClaw session key or recipient address (maps to `to` in the send frame) */
+  to: string;
   message: string;
-  metadata?: {
-    source: 'nats';
-    eventId: string;
-    subject: string;
-    priority: number;
-  };
+  /** Internal tracking metadata — NOT sent to gateway (additionalProperties: false) */
+  eventId?: string;
 }
 
 export class GatewayRpcError extends Error {
@@ -266,10 +263,9 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
       id,
       method: 'send',
       params: {
-        target: payload.target,
+        to: payload.to,
         message: payload.message,
-        metadata: payload.metadata,
-        idempotencyKey: payload.metadata?.eventId ?? String(this.requestId),
+        idempotencyKey: payload.eventId ?? String(this.requestId),
       },
     });
     return promise;

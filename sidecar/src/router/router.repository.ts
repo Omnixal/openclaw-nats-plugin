@@ -82,6 +82,6 @@ export class RouterRepository extends BaseService {
     const result = await this.db
       .select({ count: sql<number>`count(*)` })
       .from(eventRoutes);
-    return result[0]?.count ?? 0;
+    return (result[0] as unknown as { count: number })?.count ?? 0;
   }
 }

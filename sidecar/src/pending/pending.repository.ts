@@ -49,7 +49,7 @@ export class PendingRepository extends BaseService {
       .select({ count: sql<number>`count(*)` })
       .from(pendingEvents)
       .where(isNull(pendingEvents.deliveredAt));
-    return result[0]?.count ?? 0;
+    return (result[0] as unknown as { count: number })?.count ?? 0;
   }
 
   async cleanup(ttlSeconds: number): Promise<number> {

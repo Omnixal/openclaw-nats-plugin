@@ -86,12 +86,9 @@ describe('ConsumerController', () => {
     expect(mockGatewayClient.inject).toHaveBeenCalledTimes(1);
 
     const injectCall = mockGatewayClient.inject.mock.calls[0][0];
-    expect(injectCall.target).toBe('main');
+    expect(injectCall.to).toBe('main');
     expect(injectCall.message).toBe(`[NATS:${envelope.subject}] ${JSON.stringify(envelope.payload)}`);
-    expect(injectCall.metadata.source).toBe('nats');
-    expect(injectCall.metadata.eventId).toBe(envelope.id);
-    expect(injectCall.metadata.subject).toBe(envelope.subject);
-    expect(injectCall.metadata.priority).toBe(5);
+    expect(injectCall.eventId).toBe(envelope.id);
 
     expect(mockRouterService.recordDelivery).toHaveBeenCalledTimes(1);
     const recordArgs = mockRouterService.recordDelivery.mock.calls[0];
@@ -200,7 +197,7 @@ describe('ConsumerController', () => {
     await (service as any).handleInbound(msg);
 
     const injectCall = mockGatewayClient.inject.mock.calls[0][0];
-    expect(injectCall.target).toBe('worker-2');
+    expect(injectCall.to).toBe('worker-2');
   });
 
   it('should deliver to multiple matching routes', async () => {
@@ -214,50 +211,18 @@ describe('ConsumerController', () => {
     await (service as any).handleInbound(msg);
 
     expect(mockGatewayClient.inject).toHaveBeenCalledTimes(2);
-    expect(mockGatewayClient.inject.mock.calls[0][0].target).toBe('main');
-    expect(mockGatewayClient.inject.mock.calls[1][0].target).toBe('worker-2');
+    expect(mockGatewayClient.inject.mock.calls[0][0].to).toBe('main');
+    expect(mockGatewayClient.inject.mock.calls[1][0].to).toBe('worker-2');
   });
 
-  it('should use priority from pipeline context enrichments', async () => {
-    mockPipeline.process = mock(() =>
-      Promise.resolve({ result: 'pass' as const, ctx: { enrichments: { priority: 8 } } }),
-    );
-
+  it('should include eventId in inject payload', async () => {
     const envelope = makeEnvelope();
     const msg = makeMockMessage(envelope);
 
     await (service as any).handleInbound(msg);
 
     const injectCall = mockGatewayClient.inject.mock.calls[0][0];
-    expect(injectCall.metadata.priority).toBe(8);
-  });
-
-  it('should fall back to envelope meta priority when enrichment has no priority', async () => {
-    mockPipeline.process = mock(() =>
-      Promise.resolve({ result: 'pass' as const, ctx: { enrichments: {} } }),
-    );
-
-    const envelope = makeEnvelope({ meta: { priority: 3 } });
-    const msg = makeMockMessage(envelope);
-
-    await (service as any).handleInbound(msg);
-
-    const injectCall = mockGatewayClient.inject.mock.calls[0][0];
-    expect(injectCall.metadata.priority).toBe(3);
-  });
-
-  it('should default priority to 5 when neither enrichment nor meta has it', async () => {
-    mockPipeline.process = mock(() =>
-      Promise.resolve({ result: 'pass' as const, ctx: { enrichments: {} } }),
-    );
-
-    const envelope = makeEnvelope({ meta: undefined });
-    const msg = makeMockMessage(envelope);
-
-    await (service as any).handleInbound(msg);
-
-    const injectCall = mockGatewayClient.inject.mock.calls[0][0];
-    expect(injectCall.metadata.priority).toBe(5);
+    expect(injectCall.eventId).toBe(envelope.id);
   });
 
   it('should handle string message data by parsing as JSON', async () => {

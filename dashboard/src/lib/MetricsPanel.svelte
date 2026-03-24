@@ -1,15 +1,19 @@
 <script lang="ts">
   import * as Table from '$lib/components/ui/table';
   import { Badge } from '$lib/components/ui/badge';
+  import { Button } from '$lib/components/ui/button';
   import * as Card from '$lib/components/ui/card';
   import type { SubjectMetric } from '$lib/api';
   import { relativeAge } from '$lib/utils';
+  import CircleHelp from '@lucide/svelte/icons/circle-help';
+  import EventsReferenceModal from './EventsReferenceModal.svelte';
 
   interface Props {
     metrics: SubjectMetric[];
   }
 
   let { metrics }: Props = $props();
+  let showEventsRef = $state(false);
 
   let totalPublished = $derived(metrics.reduce((acc, m) => acc + m.published, 0));
   let totalConsumed = $derived(metrics.reduce((acc, m) => acc + m.consumed, 0));
@@ -17,7 +21,12 @@
 
 <Card.Root>
   <Card.Header class="pb-2">
-    <Card.Title class="text-sm font-medium">Queue Metrics</Card.Title>
+    <div class="flex items-center justify-between">
+      <Card.Title class="text-sm font-medium">Queue Metrics</Card.Title>
+      <Button variant="ghost" size="icon-sm" onclick={() => showEventsRef = true} title="Events reference">
+        <CircleHelp size={14} />
+      </Button>
+    </div>
   </Card.Header>
   <Card.Content>
     <div class="flex items-center gap-2 mb-3">
@@ -58,3 +67,5 @@
     {/if}
   </Card.Content>
 </Card.Root>
+
+<EventsReferenceModal open={showEventsRef} onClose={() => showEventsRef = false} />

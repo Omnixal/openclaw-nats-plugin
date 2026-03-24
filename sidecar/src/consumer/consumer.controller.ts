@@ -58,14 +58,9 @@ export class ConsumerController extends BaseController {
           try {
             const injectStart = performance.now();
             await this.gatewayClient.inject({
-              target: route.target,
+              to: route.target,
               message: this.formatMessage(envelope),
-              metadata: {
-                source: 'nats',
-                eventId: envelope.id,
-                subject: envelope.subject,
-                priority: (ctx.enrichments['priority'] as number) ?? envelope.meta?.priority ?? 5,
-              },
+              eventId: envelope.id,
             });
             const lagMs = Math.round(performance.now() - injectStart);
             await this.routerService.recordDelivery(route.id, envelope.subject, lagMs);

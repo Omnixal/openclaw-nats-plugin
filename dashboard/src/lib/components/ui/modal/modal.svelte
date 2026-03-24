@@ -8,6 +8,7 @@
     onClose: () => void;
     children: Snippet;
     actions?: Snippet;
+    class?: string;
   }
 
   let {
@@ -16,6 +17,7 @@
     onClose,
     children,
     actions,
+    class: className,
   }: Props = $props();
 
   function handleKeydown(e: KeyboardEvent) {
@@ -31,7 +33,7 @@
   >
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div class="fixed inset-0" onclick={onClose}></div>
-    <div class="relative z-10 w-full max-w-lg rounded-lg border bg-background p-6 shadow-lg">
+    <div class="relative z-10 w-full {className ?? 'max-w-lg'} rounded-lg border bg-background p-6 shadow-lg">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-semibold">{title}</h3>
         <Button variant="ghost" size="icon-sm" onclick={onClose}>

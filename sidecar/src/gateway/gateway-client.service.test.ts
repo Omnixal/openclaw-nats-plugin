@@ -80,9 +80,9 @@ describe('GatewayClientService', () => {
   it('inject() throws when not connected', async () => {
     expect(
       service.inject({
-        target: 'main',
+        to: 'main',
         message: 'hello',
-        metadata: { source: 'nats', eventId: 'e1', subject: 'agent.inbound.test', priority: 5 },
+        eventId: 'e1',
       }),
     ).rejects.toThrow('Gateway WebSocket not connected');
   });
@@ -94,9 +94,9 @@ describe('GatewayClientService', () => {
     (service as any).requestId = 10;
 
     const promise = service.inject({
-      target: 'main',
+      to: 'main',
       message: 'event payload',
-      metadata: { source: 'nats', eventId: 'evt-42', subject: 'agent.inbound.task', priority: 3 },
+      eventId: 'evt-42',
     });
 
     expect(ws.send).toHaveBeenCalledTimes(1);
@@ -106,9 +106,8 @@ describe('GatewayClientService', () => {
       id: 'rpc-11',
       method: 'send',
       params: {
-        target: 'main',
+        to: 'main',
         message: 'event payload',
-        metadata: { source: 'nats', eventId: 'evt-42', subject: 'agent.inbound.task', priority: 3 },
         idempotencyKey: 'evt-42',
       },
     });
@@ -124,7 +123,7 @@ describe('GatewayClientService', () => {
     (service as any).connected = true;
     (service as any).requestId = 5;
 
-    const promise = service.inject({ target: 'main', message: 'test' });
+    const promise = service.inject({ to: 'main', message: 'test' });
 
     (service as any).handleMessage(
       JSON.stringify({
@@ -139,13 +138,13 @@ describe('GatewayClientService', () => {
     await expect(promise).rejects.toThrow('missing scope: operator.write');
   });
 
-  it('inject() uses requestId as idempotencyKey when metadata.eventId is absent', async () => {
+  it('inject() uses requestId as idempotencyKey when eventId is absent', async () => {
     const ws = createMockWs();
     (service as any).ws = ws;
     (service as any).connected = true;
     (service as any).requestId = 5;
 
-    const promise = service.inject({ target: 'main', message: 'no-meta' });
+    const promise = service.inject({ to: 'main', message: 'no-meta' });
 
     const sent = JSON.parse(ws.send.mock.calls[0][0]);
     expect(sent.params.idempotencyKey).toBe('6');
@@ -160,7 +159,7 @@ describe('GatewayClientService', () => {
     (service as any).connected = true;
     (service as any).requestId = 0;
 
-    const promise = service.inject({ target: 'main', message: 'test' });
+    const promise = service.inject({ to: 'main', message: 'test' });
 
     (service as any).connected = false;
     (service as any).connectSent = false;
@@ -181,7 +180,7 @@ describe('GatewayClientService', () => {
     (service as any).reconnectTimer = setTimeout(() => {}, 99999);
     (service as any).requestId = 0;
 
-    const promise = service.inject({ target: 'main', message: 'test' });
+    const promise = service.inject({ to: 'main', message: 'test' });
 
     await (service as any).onModuleDestroy();
 

@@ -53,6 +53,7 @@ Plugin hooks make lightweight HTTP calls to a NATS sidecar service for event pub
 | Subject | Trigger |
 |---|---|
 | `agent.events.gateway.startup` | Gateway starts |
+| `agent.events.gateway.stopped` | Gateway stops |
 | `agent.events.session.new` | `/new` command |
 | `agent.events.session.reset` | `/reset` command |
 | `agent.events.session.stop` | `/stop` command |
@@ -60,10 +61,13 @@ Plugin hooks make lightweight HTTP calls to a NATS sidecar service for event pub
 | `agent.events.session.ended` | Session ends |
 | `agent.events.tool.{name}.completed` | Tool succeeds |
 | `agent.events.tool.{name}.failed` | Tool fails |
+| `agent.events.message.received` | Inbound message received |
+| `agent.events.message.sent` | Message delivered |
+| `agent.events.llm.output` | LLM response received |
+| `agent.events.subagent.spawning` | Subagent about to spawn |
 | `agent.events.subagent.spawned` | Subagent created |
 | `agent.events.subagent.ended` | Subagent finished |
 | `agent.events.agent.run_ended` | Agent run completes |
-| `agent.events.message.sent` | Message delivered |
 | `agent.events.context.compacted` | Context history compressed |
 
 ## Dashboard

@@ -58,7 +58,7 @@ export class LogService extends BaseService {
     }
   }
 
-  async logError(entityType: 'route' | 'cron', entityId: string, subject: string, error: unknown): Promise<void> {
+  async logError(entityType: 'route' | 'cron' | 'timer', entityId: string, subject: string, error: unknown): Promise<void> {
     try {
       const detail = error instanceof Error
         ? JSON.stringify({ message: error.message, stack: error.stack })
