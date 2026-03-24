@@ -1,4 +1,6 @@
 import { Service, BaseService, type OnModuleInit, type OnModuleDestroy } from '@onebun/core';
+import path from 'node:path';
+import { loadOrCreateIdentity, publicKeyToBase64Url, signChallenge, type DeviceIdentity } from './device-identity';
 
 export interface GatewayInjectPayload {
   target: string;
@@ -40,12 +42,20 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
   private requestId = 0;
   private wsUrl!: string;
   private token!: string;
+  private identity!: DeviceIdentity;
+  private publicKeyBase64Url!: string;
+  private challengeNonce = '';
   private pendingRequests = new Map<string, PendingRequest>();
 
   async onModuleInit(): Promise<void> {
     this.wsUrl = this.config.get('gateway.wsUrl');
     this.token = this.config.get('gateway.token');
     if (this.wsUrl && this.token) {
+      const dbPath = this.config.get('database.url');
+      const identityPath = path.join(path.dirname(dbPath), 'device-identity.json');
+      this.identity = loadOrCreateIdentity(identityPath);
+      this.publicKeyBase64Url = publicKeyToBase64Url(this.identity.publicKeyPem);
+      this.logger.info('Device identity loaded', { deviceId: this.identity.deviceId });
       this.connect();
     } else {
       this.logger.warn('Gateway WebSocket not configured — skipping connection (need wsUrl + deviceToken)');
@@ -99,7 +109,8 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
 
     // Server challenge — respond with connect frame
     if (frame.type === 'event' && frame.event === 'connect.challenge') {
-      this.logger.debug('Received connect.challenge from server');
+      this.challengeNonce = frame.payload?.nonce ?? '';
+      this.logger.debug('Received connect.challenge from server', { hasNonce: !!this.challengeNonce });
       this.sendConnectFrame();
       return;
     }
@@ -162,33 +173,59 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
   private sendConnectFrame(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || this.connectSent) return;
     this.connectSent = true;
-    this.logger.info('Sending connect frame');
+
+    const signedAt = Date.now();
+    const scopes = ['operator.read', 'operator.write'];
+    const client = {
+      id: 'gateway-client' as const,
+      displayName: 'nats-sidecar',
+      version: '1.0.0',
+      platform: 'linux',
+      mode: 'backend' as const,
+    };
+
+    const signature = signChallenge(this.identity.privateKeyPem, {
+      deviceId: this.identity.deviceId,
+      clientId: client.id,
+      clientMode: client.mode,
+      role: 'operator',
+      scopes,
+      signedAtMs: signedAt,
+      token: this.token,
+      nonce: this.challengeNonce,
+      platform: client.platform,
+    });
+
+    this.logger.info('Sending connect frame with device identity', {
+      deviceId: this.identity.deviceId,
+    });
 
     try {
       this.send({
-      type: 'req',
-      id: `connect-${++this.requestId}`,
-      method: 'connect',
-      params: {
-        minProtocol: 3,
-        maxProtocol: 3,
-        client: {
-          id: 'gateway-client',
-          displayName: 'nats-sidecar',
-          version: '1.0.0',
-          platform: 'linux',
-          mode: 'backend',
+        type: 'req',
+        id: `connect-${++this.requestId}`,
+        method: 'connect',
+        params: {
+          minProtocol: 3,
+          maxProtocol: 3,
+          client,
+          role: 'operator',
+          scopes,
+          caps: [],
+          commands: [],
+          permissions: {},
+          auth: { token: this.token },
+          device: {
+            id: this.identity.deviceId,
+            publicKey: this.publicKeyBase64Url,
+            signature,
+            signedAt,
+            nonce: this.challengeNonce,
+          },
+          locale: 'en-US',
+          userAgent: 'nats-sidecar/1.0.0',
         },
-        role: 'operator',
-        scopes: ['operator.read', 'operator.write'],
-        caps: [],
-        commands: [],
-        permissions: {},
-        auth: { token: this.token },
-        locale: 'en-US',
-        userAgent: 'nats-sidecar/1.0.0',
-      },
-    });
+      });
     } catch (err) {
       this.logger.error('Failed to send connect frame', err);
       this.connectSent = false;

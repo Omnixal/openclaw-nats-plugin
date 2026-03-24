@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 import { GatewayClientService, GatewayRpcError } from './gateway-client.service';
+import { generateIdentity, publicKeyToBase64Url } from './device-identity';
 
 /* ---------- helpers ---------- */
 
@@ -17,12 +18,16 @@ function createMockWs() {
   return ws;
 }
 
+const testIdentity = generateIdentity();
+const testPublicKeyBase64Url = publicKeyToBase64Url(testIdentity.publicKeyPem);
+
 function createService(): GatewayClientService {
   const svc = new GatewayClientService() as any;
   svc.config = {
     get: mock((key: string) => {
       if (key === 'gateway.wsUrl') return 'ws://localhost:18789';
       if (key === 'gateway.token') return 'test-token';
+      if (key === 'database.url') return './data/test.db';
       return '';
     }),
   };
@@ -32,6 +37,11 @@ function createService(): GatewayClientService {
     debug: mock(() => {}),
     error: mock(() => {}),
   };
+  // Inject test identity (skip file I/O)
+  svc.identity = testIdentity;
+  svc.publicKeyBase64Url = testPublicKeyBase64Url;
+  svc.token = 'test-token';
+  svc.challengeNonce = '';
   return svc as GatewayClientService;
 }
 
@@ -116,7 +126,6 @@ describe('GatewayClientService', () => {
 
     const promise = service.inject({ target: 'main', message: 'test' });
 
-    // Simulate gateway error response (like missing scope)
     (service as any).handleMessage(
       JSON.stringify({
         type: 'res',
@@ -141,7 +150,6 @@ describe('GatewayClientService', () => {
     const sent = JSON.parse(ws.send.mock.calls[0][0]);
     expect(sent.params.idempotencyKey).toBe('6');
 
-    // Resolve so we don't leak the timer
     (service as any).handleMessage(JSON.stringify({ type: 'res', ok: true, id: 'rpc-6' }));
     await promise;
   });
@@ -154,7 +162,6 @@ describe('GatewayClientService', () => {
 
     const promise = service.inject({ target: 'main', message: 'test' });
 
-    // Simulate WebSocket close — reject all pending via the same logic as onclose handler
     (service as any).connected = false;
     (service as any).connectSent = false;
     for (const [id, pending] of (service as any).pendingRequests) {
@@ -174,7 +181,6 @@ describe('GatewayClientService', () => {
     (service as any).reconnectTimer = setTimeout(() => {}, 99999);
     (service as any).requestId = 0;
 
-    // Create a pending request
     const promise = service.inject({ target: 'main', message: 'test' });
 
     await (service as any).onModuleDestroy();
@@ -204,7 +210,6 @@ describe('GatewayClientService', () => {
     (service as any).scheduleReconnect();
     expect((service as any).reconnectAttempt).toBe(2);
 
-    // Duplicate call while timer exists should be a no-op
     const timer = (service as any).reconnectTimer;
     (service as any).scheduleReconnect();
     expect((service as any).reconnectTimer).toBe(timer);
@@ -213,11 +218,11 @@ describe('GatewayClientService', () => {
 
   // --- Handshake protocol ---
 
-  it('sendConnectFrame sends full protocol handshake with auth token', () => {
+  it('sendConnectFrame includes device identity block with signature', () => {
     const ws = createMockWs();
     (service as any).ws = ws;
-    (service as any).token = 'test-token';
     (service as any).requestId = 0;
+    (service as any).challengeNonce = 'test-nonce-abc';
 
     (service as any).sendConnectFrame();
 
@@ -229,14 +234,22 @@ describe('GatewayClientService', () => {
     expect(sent.params.minProtocol).toBe(3);
     expect(sent.params.maxProtocol).toBe(3);
     expect(sent.params.client.id).toBe('gateway-client');
+    expect(sent.params.client.mode).toBe('backend');
     expect(sent.params.auth).toEqual({ token: 'test-token' });
     expect(sent.params.scopes).toEqual(['operator.read', 'operator.write']);
+
+    // Device identity block
+    expect(sent.params.device).toBeDefined();
+    expect(sent.params.device.id).toBe(testIdentity.deviceId);
+    expect(sent.params.device.publicKey).toBe(testPublicKeyBase64Url);
+    expect(sent.params.device.nonce).toBe('test-nonce-abc');
+    expect(typeof sent.params.device.signedAt).toBe('number');
+    expect(sent.params.device.signature).toMatch(/^[A-Za-z0-9_-]+$/); // base64url
   });
 
   it('sendConnectFrame is idempotent (only sends once)', () => {
     const ws = createMockWs();
     (service as any).ws = ws;
-    (service as any).token = 'test-token';
 
     (service as any).sendConnectFrame();
     (service as any).sendConnectFrame();
@@ -245,18 +258,20 @@ describe('GatewayClientService', () => {
     expect((service as any).connectSent).toBe(true);
   });
 
-  it('handleMessage sends connect frame on connect.challenge event', () => {
+  it('handleMessage saves nonce from connect.challenge and sends connect frame', () => {
     const ws = createMockWs();
     (service as any).ws = ws;
-    (service as any).token = 'test-token';
     (service as any).connectSent = false;
 
-    (service as any).handleMessage(JSON.stringify({ type: 'event', event: 'connect.challenge' }));
+    (service as any).handleMessage(
+      JSON.stringify({ type: 'event', event: 'connect.challenge', payload: { nonce: 'server-nonce-xyz', ts: Date.now() } }),
+    );
 
+    expect((service as any).challengeNonce).toBe('server-nonce-xyz');
     expect(ws.send).toHaveBeenCalledTimes(1);
     const sent = JSON.parse(ws.send.mock.calls[0][0]);
     expect(sent.method).toBe('connect');
-    expect(sent.params.minProtocol).toBe(3);
+    expect(sent.params.device.nonce).toBe('server-nonce-xyz');
   });
 
   it('handleMessage sets connected=true on hello-ok response', () => {
@@ -281,7 +296,6 @@ describe('GatewayClientService', () => {
     (service as any).connected = false;
     (service as any).connectSent = true;
 
-    // Create a pending request manually
     let rejected: Error | null = null;
     const timer = setTimeout(() => {}, 99999);
     (service as any).pendingRequests.set('rpc-1', {
@@ -326,7 +340,6 @@ describe('GatewayClientService', () => {
   it('handleMessage sends connect on any event if connect not yet sent', () => {
     const ws = createMockWs();
     (service as any).ws = ws;
-    (service as any).token = 'test-token';
     (service as any).connectSent = false;
 
     (service as any).handleMessage(JSON.stringify({ type: 'event', event: 'some.other.event' }));

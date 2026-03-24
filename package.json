@@ -1,6 +1,6 @@
 {
   "name": "@omnixal/openclaw-nats-plugin",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "NATS JetStream event-driven plugin for OpenClaw",
   "license": "MIT",
   "type": "module",
