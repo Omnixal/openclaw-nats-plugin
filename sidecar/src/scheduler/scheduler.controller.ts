@@ -14,6 +14,7 @@ import { ApiKeyMiddleware } from '../auth/api-key.middleware';
 import {
   createCronBodySchema, type CreateCronBody,
   updateCronBodySchema, type UpdateCronBody,
+  createTimerBodySchema, type CreateTimerBody,
   isValidAgentSubject,
 } from '../validation/schemas';
 
@@ -92,11 +93,50 @@ export class SchedulerController extends BaseController {
     return this.success({ deleted: true });
   }
 
+  // ── Timer Endpoints ──────────────────────────────────────────────
+
+  @Post('/timer')
+  async createTimer(@Body(createTimerBodySchema) body: CreateTimerBody): Promise<OneBunResponse> {
+    if (!isValidAgentSubject(body.subject)) {
+      return this.error('subject must start with "agent.events." followed by at least one token and must not end with "."', 400, 400);
+    }
+    const timer = await this.scheduler.addTimer({
+      name: body.name,
+      delayMs: body.delayMs,
+      subject: body.subject,
+      payload: body.payload,
+    });
+    return this.success(timer);
+  }
+
+  @Get('/timer')
+  async listTimers(): Promise<OneBunResponse> {
+    const timers = await this.scheduler.listTimers();
+    return this.success(timers);
+  }
+
+  @Delete('/timer/:name')
+  async cancelTimer(@Param('name') name: string): Promise<OneBunResponse> {
+    const deleted = await this.scheduler.cancelTimer(name);
+    if (!deleted) return this.error('Timer not found', 404, 404);
+    return this.success({ deleted: true });
+  }
+
+  // ── Queue Handlers ────────────────────────────────────────────────
+
   @Subscribe('scheduler.fire.*', { group: 'scheduler-handler' })
   async handleFire(message: Message<unknown>): Promise<void> {
     const jobName = message.pattern?.split('.').pop();
     if (jobName) {
       await this.scheduler.handleFire(jobName);
+    }
+  }
+
+  @Subscribe('scheduler.timer.*', { group: 'scheduler-handler' })
+  async handleTimerFire(message: Message<unknown>): Promise<void> {
+    const timerName = message.pattern?.split('.').pop();
+    if (timerName) {
+      await this.scheduler.handleTimerFire(timerName);
     }
   }
 }

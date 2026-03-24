@@ -56,6 +56,7 @@ export class ConsumerController extends BaseController {
       if (this.gatewayClient.isAlive()) {
         for (const route of routes) {
           try {
+            const injectStart = performance.now();
             await this.gatewayClient.inject({
               target: route.target,
               message: this.formatMessage(envelope),
@@ -66,7 +67,8 @@ export class ConsumerController extends BaseController {
                 priority: (ctx.enrichments['priority'] as number) ?? envelope.meta?.priority ?? 5,
               },
             });
-            await this.routerService.recordDelivery(route.id, envelope.subject);
+            const lagMs = Math.round(performance.now() - injectStart);
+            await this.routerService.recordDelivery(route.id, envelope.subject, lagMs);
             this.metrics.recordConsume(envelope.subject);
             await this.logService.logDelivery(route.id, envelope.subject, JSON.stringify({ eventId: envelope.id, target: route.target }));
           } catch (routeErr) {

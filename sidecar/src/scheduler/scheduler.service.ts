@@ -12,6 +12,13 @@ interface AddJobInput {
   timezone?: string;
 }
 
+interface AddTimerInput {
+  name: string;
+  delayMs: number;
+  subject: string;
+  payload?: unknown;
+}
+
 @Service()
 export class SchedulerService extends BaseService {
   private _queueReady = false;
@@ -50,6 +57,30 @@ export class SchedulerService extends BaseService {
       }
     } catch (err) {
       this.logger.error('Failed to restore cron jobs', err);
+    }
+
+    try {
+      const timers = await this.repo.findPendingTimers();
+      let restored = 0;
+      for (const timer of timers) {
+        const remaining = timer.fireAt.getTime() - Date.now();
+        if (remaining <= 0) {
+          // Timer expired during downtime — fire immediately
+          await this.fireTimer(timer.name);
+        } else {
+          this.scheduler.addTimeoutJob(
+            `timer.${timer.name}`,
+            remaining,
+            `scheduler.timer.${timer.name}`,
+          );
+          restored++;
+        }
+      }
+      if (restored > 0) {
+        this.logger.info(`Restored ${restored} pending timers from DB`);
+      }
+    } catch (err) {
+      this.logger.error('Failed to restore timers', err);
     }
   }
 
@@ -200,5 +231,81 @@ export class SchedulerService extends BaseService {
       await this.logService.logError('cron', job.id, job.subject, err);
       this.logger.error(`Cron fire failed: ${job.name}`, err);
     }
+  }
+
+  // ── Timer (one-shot delayed) Jobs ─────────────────────────────────
+
+  async addTimer(input: AddTimerInput) {
+    const fireAt = new Date(Date.now() + input.delayMs);
+    const timer = await this.repo.createTimer({
+      id: ulid(),
+      name: input.name,
+      subject: input.subject,
+      payload: input.payload ?? null,
+      delayMs: input.delayMs,
+      fireAt,
+      fired: false,
+      createdAt: new Date(),
+    });
+
+    const schedulerName = `timer.${input.name}`;
+    if (this.scheduler.hasJob(schedulerName)) {
+      this.scheduler.removeJob(schedulerName);
+    }
+    this.scheduler.addTimeoutJob(
+      schedulerName,
+      input.delayMs,
+      `scheduler.timer.${input.name}`,
+    );
+
+    this.logger.info(`Timer '${input.name}' set: ${input.delayMs}ms -> ${input.subject}`);
+    return { ...timer, fireAt: timer.fireAt.getTime(), createdAt: timer.createdAt.getTime() };
+  }
+
+  async cancelTimer(name: string): Promise<boolean> {
+    const deleted = await this.repo.deleteTimerByName(name);
+    const schedulerName = `timer.${name}`;
+    if (this.scheduler.hasJob(schedulerName)) {
+      this.scheduler.removeJob(schedulerName);
+    }
+    return deleted;
+  }
+
+  async listTimers() {
+    const timers = await this.repo.findAllTimers();
+    return timers.map(t => ({
+      ...t,
+      fireAt: t.fireAt.getTime(),
+      createdAt: t.createdAt.getTime(),
+      remainingMs: t.fired ? 0 : Math.max(0, t.fireAt.getTime() - Date.now()),
+    }));
+  }
+
+  async fireTimer(name: string): Promise<void> {
+    const timer = await this.repo.findTimerByName(name);
+    if (!timer || timer.fired) return;
+
+    if (!this._queueReady) {
+      this.logger.warn(`Timer '${name}' fire skipped — queue not ready`);
+      return;
+    }
+
+    try {
+      const base = (timer.payload && typeof timer.payload === 'object' && !Array.isArray(timer.payload))
+        ? (timer.payload as Record<string, unknown>)
+        : {};
+      const payload = { ...base, _timer: { name: timer.name, firedAt: new Date().toISOString() } };
+      await this.publisher.publish(timer.subject, payload);
+      await this.repo.markTimerFired(name);
+      await this.logService.logDelivery(timer.id, timer.subject, JSON.stringify({ type: 'timer', name }));
+      this.logger.info(`Timer fired: ${name} -> ${timer.subject}`);
+    } catch (err) {
+      await this.logService.logError('timer', timer.id, timer.subject, err);
+      this.logger.error(`Timer fire failed: ${name}`, err);
+    }
+  }
+
+  async handleTimerFire(timerName: string): Promise<void> {
+    await this.fireTimer(timerName);
   }
 }

@@ -231,6 +231,149 @@ export default function (api: any) {
     },
   });
 
+  api.registerTool({
+    name: 'nats_cron_update',
+    description: 'Update an existing cron job. Can change schedule, subject, payload, timezone, or enabled status.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Job name to update' },
+        cron: { type: 'string', description: 'New cron expression' },
+        subject: { type: 'string', description: 'New NATS subject' },
+        payload: { type: 'object', description: 'New event payload' },
+        timezone: { type: 'string', description: 'New timezone' },
+        enabled: { type: 'boolean', description: 'Enable or disable the job' },
+      },
+      required: ['name'],
+    },
+    async execute(_id: string, params: any) {
+      const { name, ...fields } = params;
+      const result = await sidecarFetch(`/api/cron/${encodeURIComponent(name)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(fields),
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+  });
+
+  api.registerTool({
+    name: 'nats_cron_toggle',
+    description: 'Toggle a cron job on/off.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Job name to toggle' },
+      },
+      required: ['name'],
+    },
+    async execute(_id: string, params: any) {
+      const result = await sidecarFetch(`/api/cron/${encodeURIComponent(params.name)}/toggle`, {
+        method: 'PATCH',
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+  });
+
+  api.registerTool({
+    name: 'nats_cron_run',
+    description: 'Manually fire a cron job right now (does not affect its schedule).',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Job name to fire' },
+      },
+      required: ['name'],
+    },
+    async execute(_id: string, params: any) {
+      const result = await sidecarFetch(`/api/cron/${encodeURIComponent(params.name)}/run`, {
+        method: 'POST',
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+  });
+
+  // ── Route Management Tools ────────────────────────────────────────
+
+  api.registerTool({
+    name: 'nats_route_update',
+    description: 'Update an existing route subscription. Can change target session, priority, or enabled status.',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Route ID (from nats_subscriptions)' },
+        target: { type: 'string', description: 'New target session' },
+        priority: { type: 'number', description: 'New priority (1-10)' },
+        enabled: { type: 'boolean', description: 'Enable or disable the route' },
+      },
+      required: ['id'],
+    },
+    async execute(_id: string, params: any) {
+      const { id, ...fields } = params;
+      const result = await sidecarFetch(`/api/routes/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(fields),
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+  });
+
+  // ── Timer (One-Shot Delayed) Tools ────────────────────────────────
+
+  api.registerTool({
+    name: 'nats_timer_set',
+    description: 'Set a one-shot timer that publishes a NATS event after a delay. Use for delayed self-pings, reminders, or deferred tasks. Survives sidecar restarts.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Unique timer name (e.g., check-deploy-status, reminder-followup)' },
+        delayMs: { type: 'number', description: 'Delay in milliseconds before firing (e.g., 300000 for 5 minutes)' },
+        subject: { type: 'string', description: 'NATS subject to publish (must start with agent.events.)' },
+        payload: { type: 'object', description: 'Event payload data' },
+      },
+      required: ['name', 'delayMs', 'subject'],
+    },
+    async execute(_id: string, params: any) {
+      const result = await sidecarFetch('/api/cron/timer', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: params.name,
+          delayMs: params.delayMs,
+          subject: params.subject,
+          payload: params.payload ?? {},
+        }),
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+  });
+
+  api.registerTool({
+    name: 'nats_timer_cancel',
+    description: 'Cancel a pending timer by name.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Timer name to cancel' },
+      },
+      required: ['name'],
+    },
+    async execute(_id: string, params: any) {
+      const result = await sidecarFetch(`/api/cron/timer/${encodeURIComponent(params.name)}`, {
+        method: 'DELETE',
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+  });
+
+  api.registerTool({
+    name: 'nats_timer_list',
+    description: 'List all timers (pending and fired) with remaining time.',
+    parameters: { type: 'object', properties: {} },
+    async execute() {
+      const result = await sidecarFetch('/api/cron/timer');
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+  });
+
   // ── Dashboard UI ─────────────────────────────────────────────────
 
   api.registerHttpRoute({

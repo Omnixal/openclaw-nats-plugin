@@ -22,6 +22,7 @@ export function relativeAge(ts: number | null): string {
 
 export function formatDuration(ms: number | null): string {
   if (ms === null) return '\u2014';
+  if (ms < 1000) return `${ms}ms`;
   const seconds = Math.floor(ms / 1000);
   if (seconds < 60) return `${seconds}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;

@@ -1,0 +1,1 @@
+ALTER TABLE `event_routes` ADD `last_delivery_lag_ms` integer;

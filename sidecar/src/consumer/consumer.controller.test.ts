@@ -93,6 +93,13 @@ describe('ConsumerController', () => {
     expect(injectCall.metadata.subject).toBe(envelope.subject);
     expect(injectCall.metadata.priority).toBe(5);
 
+    expect(mockRouterService.recordDelivery).toHaveBeenCalledTimes(1);
+    const recordArgs = mockRouterService.recordDelivery.mock.calls[0];
+    expect(recordArgs[0]).toBe('route-1');
+    expect(recordArgs[1]).toBe(envelope.subject);
+    expect(typeof recordArgs[2]).toBe('number');
+    expect(recordArgs[2]).toBeGreaterThanOrEqual(0);
+
     expect(msg.ack).toHaveBeenCalledTimes(1);
     expect(msg.nack).not.toHaveBeenCalled();
   });

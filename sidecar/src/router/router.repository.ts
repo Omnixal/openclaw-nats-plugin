@@ -57,12 +57,13 @@ export class RouterRepository extends BaseService {
     return result ?? null;
   }
 
-  async recordDelivery(routeId: string, subject: string): Promise<void> {
+  async recordDelivery(routeId: string, subject: string, lagMs: number): Promise<void> {
     await this.db.update(eventRoutes)
       .set({
         lastDeliveredAt: new Date(),
         lastEventSubject: subject,
         deliveryCount: sql`${eventRoutes.deliveryCount} + 1`,
+        lastDeliveryLagMs: lagMs,
       })
       .where(eq(eventRoutes.id, routeId));
   }

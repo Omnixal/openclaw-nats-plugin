@@ -31,6 +31,7 @@ export const eventRoutes = sqliteTable('event_routes', {
   lastDeliveredAt: integer('last_delivered_at', { mode: 'timestamp_ms' }),
   lastEventSubject: text('last_event_subject'),
   deliveryCount: integer('delivery_count').notNull().default(0),
+  lastDeliveryLagMs: integer('last_delivery_lag_ms'),
 }, (table) => [
   index('event_routes_pattern_idx').on(table.pattern),
   index('event_routes_target_idx').on(table.target),
@@ -55,6 +56,23 @@ export const cronJobs = sqliteTable('cron_jobs', {
 
 export type DbCronJob = typeof cronJobs.$inferSelect;
 export type NewCronJob = typeof cronJobs.$inferInsert;
+
+export const timerJobs = sqliteTable('timer_jobs', {
+  id:        text('id').primaryKey(),
+  name:      text('name').notNull().unique(),
+  subject:   text('subject').notNull(),
+  payload:   text('payload', { mode: 'json' }).$type<unknown>(),
+  delayMs:   integer('delay_ms').notNull(),
+  fireAt:    integer('fire_at', { mode: 'timestamp_ms' }).notNull(),
+  fired:     integer('fired', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [
+  index('timer_jobs_name_idx').on(table.name),
+  index('timer_jobs_fire_at_idx').on(table.fireAt),
+]);
+
+export type DbTimerJob = typeof timerJobs.$inferSelect;
+export type NewTimerJob = typeof timerJobs.$inferInsert;
 
 export const executionLogs = sqliteTable('execution_logs', {
   id:         text('id').primaryKey(),

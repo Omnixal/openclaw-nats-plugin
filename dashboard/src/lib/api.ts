@@ -156,6 +156,41 @@ export async function runCronJobNow(name: string): Promise<void> {
   await fetchJSON(`/cron/${encodeURIComponent(name)}/run`, { method: 'POST' });
 }
 
+// ── Timers ──────────────────────────────────────────────────────────
+
+export interface TimerJob {
+  id: string;
+  name: string;
+  subject: string;
+  payload: unknown;
+  delayMs: number;
+  fireAt: number;
+  fired: boolean;
+  createdAt: number;
+  remainingMs: number;
+}
+
+export async function getTimers(): Promise<TimerJob[]> {
+  return fetchJSON('/cron/timer');
+}
+
+export async function createTimer(body: {
+  name: string;
+  delayMs: number;
+  subject: string;
+  payload?: unknown;
+}): Promise<TimerJob> {
+  return fetchJSON('/cron/timer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function cancelTimer(name: string): Promise<void> {
+  await fetchJSON(`/cron/timer/${encodeURIComponent(name)}`, { method: 'DELETE' });
+}
+
 // ── Metrics ─────────────────────────────────────────────────────────
 
 export interface SubjectMetric {

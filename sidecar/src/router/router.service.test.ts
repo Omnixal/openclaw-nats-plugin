@@ -9,7 +9,7 @@ function createService() {
     findEnabled: mock(() => Promise.resolve([])),
     create: mock((route: any) => Promise.resolve(route)),
     upsert: mock(() => Promise.resolve({
-      route: { id: '01ABC', pattern: 'agent.events.cron.>', target: 'main', priority: 5, enabled: true, createdAt: new Date(), lastDeliveredAt: null, lastEventSubject: null, deliveryCount: 0 },
+      route: { id: '01ABC', pattern: 'agent.events.cron.>', target: 'main', priority: 5, enabled: true, createdAt: new Date(), lastDeliveredAt: null, lastEventSubject: null, deliveryCount: 0, lastDeliveryLagMs: null },
       created: true,
     })),
     deleteById: mock(() => Promise.resolve(true)),
@@ -37,6 +37,7 @@ function makeRoute(overrides: Partial<DbEventRoute> = {}): DbEventRoute {
     lastDeliveredAt: null,
     lastEventSubject: null,
     deliveryCount: 0,
+    lastDeliveryLagMs: null,
     ...overrides,
   };
 }
@@ -149,7 +150,7 @@ describe('RouterService.subscribe', () => {
   test('subscribe with existing pattern returns created=false', async () => {
     const svc = createService() as any;
     svc.repo.upsert = mock(() => Promise.resolve({
-      route: { id: '01ABC', pattern: 'agent.events.cron.>', target: 'main', priority: 8, enabled: true, createdAt: new Date(Date.now() - 10000), lastDeliveredAt: null, lastEventSubject: null, deliveryCount: 0 },
+      route: { id: '01ABC', pattern: 'agent.events.cron.>', target: 'main', priority: 8, enabled: true, createdAt: new Date(Date.now() - 10000), lastDeliveredAt: null, lastEventSubject: null, deliveryCount: 0, lastDeliveryLagMs: null },
       created: false,
     }));
 
@@ -171,11 +172,11 @@ describe('RouterService.subscribe', () => {
 });
 
 describe('RouterService.recordDelivery', () => {
-  test('calls repo.recordDelivery with correct args', async () => {
+  test('calls repo.recordDelivery with correct args including lagMs', async () => {
     const svc = createService() as any;
-    await (svc as RouterService).recordDelivery('route-1', 'agent.events.cron.daily');
+    await (svc as RouterService).recordDelivery('route-1', 'agent.events.cron.daily', 42);
     expect(svc.repo.recordDelivery).toHaveBeenCalledTimes(1);
-    expect((svc.repo.recordDelivery as any).mock.calls[0]).toEqual(['route-1', 'agent.events.cron.daily']);
+    expect((svc.repo.recordDelivery as any).mock.calls[0]).toEqual(['route-1', 'agent.events.cron.daily', 42]);
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
-import { GatewayClientService } from './gateway-client.service';
+import { GatewayClientService, GatewayRpcError } from './gateway-client.service';
 
 /* ---------- helpers ---------- */
 
@@ -77,13 +77,13 @@ describe('GatewayClientService', () => {
     ).rejects.toThrow('Gateway WebSocket not connected');
   });
 
-  it('inject() sends correct frame with rpc- prefixed id and idempotencyKey', async () => {
+  it('inject() sends correct frame and resolves on ok response', async () => {
     const ws = createMockWs();
     (service as any).ws = ws;
     (service as any).connected = true;
     (service as any).requestId = 10;
 
-    await service.inject({
+    const promise = service.inject({
       target: 'main',
       message: 'event payload',
       metadata: { source: 'nats', eventId: 'evt-42', subject: 'agent.inbound.task', priority: 3 },
@@ -102,6 +102,32 @@ describe('GatewayClientService', () => {
         idempotencyKey: 'evt-42',
       },
     });
+
+    // Simulate gateway ok response
+    (service as any).handleMessage(JSON.stringify({ type: 'res', ok: true, id: 'rpc-11' }));
+    await promise; // should resolve without error
+  });
+
+  it('inject() rejects with GatewayRpcError on error response', async () => {
+    const ws = createMockWs();
+    (service as any).ws = ws;
+    (service as any).connected = true;
+    (service as any).requestId = 5;
+
+    const promise = service.inject({ target: 'main', message: 'test' });
+
+    // Simulate gateway error response (like missing scope)
+    (service as any).handleMessage(
+      JSON.stringify({
+        type: 'res',
+        ok: false,
+        id: 'rpc-6',
+        error: { errorCode: 'INVALID_REQUEST', errorMessage: 'missing scope: operator.write' },
+      }),
+    );
+
+    await expect(promise).rejects.toThrow(GatewayRpcError);
+    await expect(promise).rejects.toThrow('missing scope: operator.write');
   });
 
   it('inject() uses requestId as idempotencyKey when metadata.eventId is absent', async () => {
@@ -110,18 +136,46 @@ describe('GatewayClientService', () => {
     (service as any).connected = true;
     (service as any).requestId = 5;
 
-    await service.inject({ target: 'main', message: 'no-meta' });
+    const promise = service.inject({ target: 'main', message: 'no-meta' });
 
     const sent = JSON.parse(ws.send.mock.calls[0][0]);
     expect(sent.params.idempotencyKey).toBe('6');
+
+    // Resolve so we don't leak the timer
+    (service as any).handleMessage(JSON.stringify({ type: 'res', ok: true, id: 'rpc-6' }));
+    await promise;
   });
 
-  it('onModuleDestroy() closes WebSocket and clears state', async () => {
+  it('inject() rejects when WebSocket closes before response', async () => {
+    const ws = createMockWs();
+    (service as any).ws = ws;
+    (service as any).connected = true;
+    (service as any).requestId = 0;
+
+    const promise = service.inject({ target: 'main', message: 'test' });
+
+    // Simulate WebSocket close — reject all pending via the same logic as onclose handler
+    (service as any).connected = false;
+    (service as any).connectSent = false;
+    for (const [id, pending] of (service as any).pendingRequests) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('Gateway WebSocket closed'));
+    }
+    (service as any).pendingRequests.clear();
+
+    await expect(promise).rejects.toThrow('Gateway WebSocket closed');
+  });
+
+  it('onModuleDestroy() closes WebSocket and rejects pending requests', async () => {
     const ws = createMockWs();
     (service as any).ws = ws;
     (service as any).connected = true;
     (service as any).connectSent = true;
     (service as any).reconnectTimer = setTimeout(() => {}, 99999);
+    (service as any).requestId = 0;
+
+    // Create a pending request
+    const promise = service.inject({ target: 'main', message: 'test' });
 
     await (service as any).onModuleDestroy();
 
@@ -130,6 +184,9 @@ describe('GatewayClientService', () => {
     expect((service as any).connected).toBe(false);
     expect((service as any).connectSent).toBe(false);
     expect((service as any).reconnectTimer).toBeNull();
+    expect((service as any).pendingRequests.size).toBe(0);
+
+    await expect(promise).rejects.toThrow('Gateway client shutting down');
   });
 
   it('scheduleReconnect uses exponential backoff', () => {
@@ -173,6 +230,7 @@ describe('GatewayClientService', () => {
     expect(sent.params.maxProtocol).toBe(3);
     expect(sent.params.client.id).toBe('gateway-client');
     expect(sent.params.auth).toEqual({ token: 'test-token' });
+    expect(sent.params.scopes).toEqual(['operator.read', 'operator.write']);
   });
 
   it('sendConnectFrame is idempotent (only sends once)', () => {
@@ -219,16 +277,50 @@ describe('GatewayClientService', () => {
     expect((service as any).connected).toBe(false);
   });
 
-  it('handleMessage logs warning on error response', () => {
+  it('handleMessage logs error and rejects pending on error response', () => {
     (service as any).connected = false;
     (service as any).connectSent = true;
+
+    // Create a pending request manually
+    let rejected: Error | null = null;
+    const timer = setTimeout(() => {}, 99999);
+    (service as any).pendingRequests.set('rpc-1', {
+      resolve: () => {},
+      reject: (err: Error) => { rejected = err; },
+      timer,
+    });
 
     (service as any).handleMessage(
       JSON.stringify({ type: 'res', ok: false, id: 'rpc-1', error: { code: 401, message: 'Unauthorized' } }),
     );
 
     expect((service as any).connected).toBe(false);
-    expect((service as any).logger.warn).toHaveBeenCalled();
+    expect((service as any).logger.error).toHaveBeenCalled();
+    expect(rejected).toBeInstanceOf(GatewayRpcError);
+    expect((rejected as any).errorCode).toBe('401');
+    expect((rejected as any).errorMessage).toBe('Unauthorized');
+    expect((service as any).pendingRequests.size).toBe(0);
+  });
+
+  it('handleMessage closes and reconnects on connect error response', () => {
+    const ws = createMockWs();
+    (service as any).ws = ws;
+    (service as any).connected = true;
+    (service as any).connectSent = true;
+
+    (service as any).handleMessage(
+      JSON.stringify({
+        type: 'res',
+        ok: false,
+        id: 'connect-1',
+        error: { errorCode: 'AUTH_FAILED', errorMessage: 'Invalid token' },
+      }),
+    );
+
+    expect((service as any).connected).toBe(false);
+    expect((service as any).connectSent).toBe(false);
+    expect(ws.close).toHaveBeenCalledTimes(1);
+    expect((service as any).logger.error).toHaveBeenCalled();
   });
 
   it('handleMessage sends connect on any event if connect not yet sent', () => {

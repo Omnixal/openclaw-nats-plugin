@@ -14,12 +14,14 @@ describe('GET /api/routes/health', () => {
           target: 'main', enabled: true, priority: 5,
           createdAt: new Date(), lastDeliveredAt: new Date(Date.now() - 60000),
           lastEventSubject: 'agent.events.cron.daily', deliveryCount: 42,
+          lastDeliveryLagMs: 150,
         },
         {
           id: '01DEF', pattern: 'agent.events.hook.>',
           target: 'main', enabled: true, priority: 5,
           createdAt: new Date(), lastDeliveredAt: null,
           lastEventSubject: null, deliveryCount: 0,
+          lastDeliveryLagMs: null,
         },
       ])),
       subscribe: mock(),
@@ -54,6 +56,7 @@ describe('GET /api/routes/health', () => {
         target: 'main', enabled: true, priority: 5,
         createdAt: new Date(), lastDeliveredAt: null,
         lastEventSubject: null, deliveryCount: 0,
+        lastDeliveryLagMs: null,
       },
     ]));
 

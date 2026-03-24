@@ -58,8 +58,8 @@ export class RouterService extends BaseService {
     return this.repo.updateById(id, fields);
   }
 
-  async recordDelivery(routeId: string, subject: string): Promise<void> {
-    await this.repo.recordDelivery(routeId, subject);
+  async recordDelivery(routeId: string, subject: string, lagMs: number): Promise<void> {
+    await this.repo.recordDelivery(routeId, subject, lagMs);
   }
 
   async unsubscribe(pattern: string): Promise<boolean> {

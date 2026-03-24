@@ -1,6 +1,6 @@
 import { Service, BaseService } from '@onebun/core';
-import { DrizzleService, eq, sql } from '@onebun/drizzle';
-import { cronJobs, type DbCronJob, type NewCronJob } from '../db/schema';
+import { DrizzleService, eq, sql, and, lte } from '@onebun/drizzle';
+import { cronJobs, timerJobs, type DbCronJob, type NewCronJob, type DbTimerJob, type NewTimerJob } from '../db/schema';
 
 @Service()
 export class SchedulerRepository extends BaseService {
@@ -68,5 +68,52 @@ export class SchedulerRepository extends BaseService {
     await this.db.update(cronJobs)
       .set({ lastRunAt: new Date() })
       .where(eq(cronJobs.name, name));
+  }
+
+  // ── Timer Jobs ──────────────────────────────────────────────────────
+
+  async createTimer(timer: NewTimerJob): Promise<DbTimerJob> {
+    const [result] = await this.db
+      .insert(timerJobs)
+      .values(timer)
+      .onConflictDoUpdate({
+        target: timerJobs.name,
+        set: {
+          subject: sql`excluded.subject`,
+          payload: sql`excluded.payload`,
+          delayMs: sql`excluded.delay_ms`,
+          fireAt: sql`excluded.fire_at`,
+          fired: sql`0`,
+        },
+      })
+      .returning();
+    return result;
+  }
+
+  async findPendingTimers(): Promise<DbTimerJob[]> {
+    return this.db.select().from(timerJobs)
+      .where(eq(timerJobs.fired, false)) as any;
+  }
+
+  async findTimerByName(name: string): Promise<DbTimerJob | undefined> {
+    const [result] = await this.db.select().from(timerJobs)
+      .where(eq(timerJobs.name, name));
+    return result;
+  }
+
+  async markTimerFired(name: string): Promise<void> {
+    await this.db.update(timerJobs)
+      .set({ fired: true })
+      .where(eq(timerJobs.name, name));
+  }
+
+  async deleteTimerByName(name: string): Promise<boolean> {
+    const result = await this.db.delete(timerJobs)
+      .where(eq(timerJobs.name, name)).returning();
+    return result.length > 0;
+  }
+
+  async findAllTimers(): Promise<DbTimerJob[]> {
+    return this.db.select().from(timerJobs).orderBy(timerJobs.fireAt) as any;
   }
 }

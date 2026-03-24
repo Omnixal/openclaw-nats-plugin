@@ -54,6 +54,15 @@ export const updateCronBodySchema = type({
 
 export type UpdateCronBody = typeof updateCronBodySchema.infer;
 
+export const createTimerBodySchema = type({
+  name: 'string',
+  delayMs: 'number > 0',
+  subject: 'string',
+  'payload?': 'unknown',
+});
+
+export type CreateTimerBody = typeof createTimerBodySchema.infer;
+
 /** Validate that subject has content after 'agent.events.' prefix and doesn't end with '.' */
 export function isValidAgentSubject(subject: string): boolean {
   if (!subject.startsWith('agent.events.')) return false;

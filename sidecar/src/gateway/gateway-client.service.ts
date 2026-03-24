@@ -11,6 +11,25 @@ export interface GatewayInjectPayload {
   };
 }
 
+export class GatewayRpcError extends Error {
+  constructor(
+    public readonly rpcId: string,
+    public readonly errorCode: string,
+    public readonly errorMessage: string,
+  ) {
+    super(`Gateway RPC error [${rpcId}]: ${errorCode} — ${errorMessage}`);
+    this.name = 'GatewayRpcError';
+  }
+}
+
+interface PendingRequest {
+  resolve: () => void;
+  reject: (err: Error) => void;
+  timer: Timer;
+}
+
+const RPC_TIMEOUT_MS = 10_000;
+
 @Service()
 export class GatewayClientService extends BaseService implements OnModuleInit, OnModuleDestroy {
   private ws: WebSocket | null = null;
@@ -21,6 +40,7 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
   private requestId = 0;
   private wsUrl!: string;
   private token!: string;
+  private pendingRequests = new Map<string, PendingRequest>();
 
   async onModuleInit(): Promise<void> {
     this.wsUrl = this.config.get('gateway.wsUrl');
@@ -49,6 +69,12 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
       this.ws.onclose = () => {
         this.connected = false;
         this.connectSent = false;
+        // Reject all in-flight requests immediately — don't make callers wait for timeout
+        for (const [id, pending] of this.pendingRequests) {
+          clearTimeout(pending.timer);
+          pending.reject(new Error('Gateway WebSocket closed'));
+        }
+        this.pendingRequests.clear();
         this.scheduleReconnect();
       };
 
@@ -97,12 +123,26 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
       }
       // Regular RPC ok response (e.g. for inject calls)
       this.logger.debug('Received RPC ok response', { id: frame.id });
+      this.resolvePending(frame.id);
       return;
     }
 
     // Error response
     if (frame.type === 'res' && frame.ok === false) {
-      this.logger.warn('Gateway RPC error', { id: frame.id, error: frame.error });
+      const errorCode = frame.error?.code ?? frame.error?.errorCode ?? 'UNKNOWN';
+      const errorMessage = frame.error?.message ?? frame.error?.errorMessage ?? 'Unknown gateway error';
+      this.logger.error('Gateway RPC error', { id: frame.id, errorCode, errorMessage });
+
+      // If this is a connect error, close and reconnect
+      if (frame.id?.startsWith('connect-')) {
+        this.logger.error(`Gateway rejected connection: ${errorCode} — ${errorMessage}`);
+        this.connected = false;
+        this.connectSent = false;
+        this.ws?.close();
+        return;
+      }
+
+      this.rejectPending(frame.id, new GatewayRpcError(frame.id, String(errorCode), String(errorMessage)));
     }
   }
 
@@ -111,7 +151,8 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
     this.connectSent = true;
     this.logger.info('Sending connect frame');
 
-    this.send({
+    try {
+      this.send({
       type: 'req',
       id: `connect-${++this.requestId}`,
       method: 'connect',
@@ -126,7 +167,7 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
           mode: 'backend',
         },
         role: 'operator',
-        scopes: ['operator.read'],
+        scopes: ['operator.read', 'operator.write'],
         caps: [],
         commands: [],
         permissions: {},
@@ -135,11 +176,21 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
         userAgent: 'nats-sidecar/1.0.0',
       },
     });
+    } catch (err) {
+      this.logger.error('Failed to send connect frame', err);
+      this.connectSent = false;
+    }
   }
 
   private send(frame: unknown): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket is not open');
+    }
+    try {
       this.ws.send(JSON.stringify(frame));
+    } catch (err) {
+      this.connected = false;
+      throw new Error(`WebSocket send failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -158,9 +209,11 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
     if (!this.isAlive()) {
       throw new Error('Gateway WebSocket not connected');
     }
+    const id = `rpc-${++this.requestId}`;
+    const promise = this.trackRequest(id);
     this.send({
       type: 'req',
-      id: `rpc-${++this.requestId}`,
+      id,
       method: 'send',
       params: {
         target: payload.target,
@@ -169,6 +222,35 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
         idempotencyKey: payload.metadata?.eventId ?? String(this.requestId),
       },
     });
+    return promise;
+  }
+
+  private trackRequest(id: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingRequests.delete(id);
+        reject(new Error(`Gateway RPC timeout after ${RPC_TIMEOUT_MS}ms [${id}]`));
+      }, RPC_TIMEOUT_MS);
+      this.pendingRequests.set(id, { resolve, reject, timer });
+    });
+  }
+
+  private resolvePending(id: string): void {
+    const pending = this.pendingRequests.get(id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      this.pendingRequests.delete(id);
+      pending.resolve();
+    }
+  }
+
+  private rejectPending(id: string, err: Error): void {
+    const pending = this.pendingRequests.get(id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      this.pendingRequests.delete(id);
+      pending.reject(err);
+    }
   }
 
   isAlive(): boolean {
@@ -180,6 +262,12 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    // Reject all pending requests
+    for (const [id, pending] of this.pendingRequests) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('Gateway client shutting down'));
+    }
+    this.pendingRequests.clear();
     if (this.ws) {
       this.ws.close();
       this.ws = null;

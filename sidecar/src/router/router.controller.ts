@@ -35,7 +35,6 @@ export class RouterController extends BaseController {
   @Get('/health')
   async getRoutesHealth(): Promise<OneBunResponse> {
     const routes = await this.routerService.listRoutes();
-    const now = Date.now();
     const result = routes.map(r => ({
       id: r.id,
       pattern: r.pattern,
@@ -45,7 +44,7 @@ export class RouterController extends BaseController {
       lastDeliveredAt: r.lastDeliveredAt?.toISOString() ?? null,
       lastEventSubject: r.lastEventSubject ?? null,
       deliveryCount: r.deliveryCount ?? 0,
-      lagMs: r.lastDeliveredAt ? now - r.lastDeliveredAt.getTime() : null,
+      lagMs: r.lastDeliveryLagMs ?? null,
     }));
     return this.success(result);
   }
