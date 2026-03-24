@@ -117,7 +117,20 @@ export class GatewayClientService extends BaseService implements OnModuleInit, O
       if (payload?.type === 'hello-ok') {
         if (!this.connected) {
           this.connected = true;
-          this.logger.info('OpenClaw handshake complete — connected');
+          const grantedScopes = payload.auth?.scopes ?? [];
+          const serverVersion = payload.server?.version ?? 'unknown';
+          this.logger.info('OpenClaw handshake complete', {
+            protocol: payload.protocol,
+            serverVersion,
+            grantedScopes,
+            connId: payload.server?.connId,
+          });
+          if (grantedScopes.length > 0 && !grantedScopes.includes('operator.write')) {
+            this.logger.error(
+              `Gateway did NOT grant operator.write scope! Granted: [${grantedScopes.join(', ')}]. ` +
+              'Message delivery will fail. Rotate the device token with --scope operator.write',
+            );
+          }
         }
         return;
       }

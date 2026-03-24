@@ -1,6 +1,6 @@
 import { Controller, BaseController, Subscribe, OnQueueReady, type Message } from '@onebun/core';
 import { PipelineService } from '../pre-handlers/pipeline.service';
-import { GatewayClientService } from '../gateway/gateway-client.service';
+import { GatewayClientService, GatewayRpcError } from '../gateway/gateway-client.service';
 import { PendingService } from '../pending/pending.service';
 import { RouterService } from '../router/router.service';
 import { MetricsService } from '../metrics/metrics.service';
@@ -73,6 +73,13 @@ export class ConsumerController extends BaseController {
             await this.logService.logDelivery(route.id, envelope.subject, JSON.stringify({ eventId: envelope.id, target: route.target }));
           } catch (routeErr) {
             await this.logService.logError('route', route.id, envelope.subject, routeErr);
+            // Gateway rejected the request (e.g. missing scope) — store in pending, don't nack
+            if (routeErr instanceof GatewayRpcError) {
+              this.logger.error(`Gateway rejected event ${envelope.id}: ${routeErr.errorCode} — ${routeErr.errorMessage}`);
+              await this.pendingService.addPending(envelope);
+              await message.ack();
+              return;
+            }
             throw routeErr;
           }
         }
