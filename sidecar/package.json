@@ -11,7 +11,7 @@
     "typecheck": "bunx tsc --noEmit",
     "db:generate": "bunx onebun-drizzle generate",
     "db:push": "bunx onebun-drizzle push",
-    "db:studio": "bunx onebun-drizzle studio",
+    "db:studio": "bunx onebun-drizzle studio"
   },
   "dependencies": {
     "@onebun/core": "^0.2.15",
@@ -19,6 +19,7 @@
     "@onebun/envs": "^0.2.2",
     "@onebun/logger": "^0.2.1",
     "@onebun/nats": "^0.2.6",
+    "@onebun/requests": "^0.2.1",
     "arktype": "^2.2.0",
     "ulid": "^2.3.0"
   },

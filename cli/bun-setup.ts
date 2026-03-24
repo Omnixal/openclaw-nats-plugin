@@ -54,18 +54,18 @@ export async function bunSetup(): Promise<void> {
     NATS_SIDECAR_URL: 'http://127.0.0.1:3104',
     NATS_PLUGIN_API_KEY: apiKey,
     NATS_SERVERS: 'nats://127.0.0.1:4222',
-    OPENCLAW_WS_URL: 'ws://127.0.0.1:18789',
+    OPENCLAW_GATEWAY_URL: 'http://127.0.0.1:18789',
   };
   writeEnvVariables(envVars);
 
   // Write .env into sidecar dir so loadDotEnv picks it up
-  // Explicit localhost values override any container-level env (e.g. OPENCLAW_WS_URL=ws://openclaw:...)
+  // Explicit localhost values override any container-level env
   const sidecarEnv = [
     `PORT=3104`,
     `DB_PATH=${join(DATA_DIR, 'nats-sidecar.db')}`,
     `NATS_SERVERS=nats://127.0.0.1:4222`,
     `NATS_PLUGIN_API_KEY=${apiKey}`,
-    `OPENCLAW_WS_URL=ws://127.0.0.1:18789`,
+    `OPENCLAW_GATEWAY_URL=http://127.0.0.1:18789`,
   ].join('\n');
   writeFileSync(join(SIDECAR_DIR, '.env'), sidecarEnv, 'utf-8');
 

@@ -94,6 +94,8 @@ Environment variables (auto-configured by setup):
 - `NATS_SIDECAR_URL` — Sidecar URL (default: `http://127.0.0.1:3104`)
 - `NATS_PLUGIN_API_KEY` — API key for sidecar auth (auto-generated)
 - `NATS_SERVERS` — NATS server URL (default: `nats://127.0.0.1:4222`)
+- `OPENCLAW_GATEWAY_URL` — Gateway HTTP URL (default: `http://127.0.0.1:18789`)
+- `OPENCLAW_HOOK_TOKEN` — Webhook token for event delivery to agent session (from `hooks.token` in gateway config)
 
 ## Requirements
 

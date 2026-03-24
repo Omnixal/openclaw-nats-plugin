@@ -29,7 +29,7 @@ services:
       - PORT=3104
       - DB_PATH=/app/data/nats-sidecar.db
       - NATS_SERVERS=nats://nats:4222
-      - OPENCLAW_WS_URL=ws://host.docker.internal:18789
+      - OPENCLAW_GATEWAY_URL=http://host.docker.internal:18789
       - NATS_PLUGIN_API_KEY=${NATS_PLUGIN_API_KEY}
     volumes:
       - sidecar-data:/app/data

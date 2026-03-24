@@ -12,7 +12,7 @@ describe('HealthService', () => {
     get: (key: string) => {
       const values: Record<string, any> = {
         'nats.servers': 'nats://localhost:4222',
-        'gateway.wsUrl': 'ws://localhost:18789',
+        'gateway.url': 'http://localhost:18789',
         'consumer.name': 'openclaw-main',
         'dedup.ttlSeconds': 60,
       };
@@ -36,7 +36,7 @@ describe('HealthService', () => {
     expect(status.nats.connected).toBe(true);
     expect(status.gateway.connected).toBe(true);
     expect(status.nats.url).toBe('nats://localhost:4222');
-    expect(status.gateway.url).toBe('ws://localhost:18789');
+    expect(status.gateway.url).toBe('http://localhost:18789');
   });
 
   it('should return degraded status when NATS disconnected', async () => {

@@ -16,8 +16,8 @@ export const envSchema = {
     maxReconnectAttempts: Env.number({ default: -1, env: 'NATS_MAX_RECONNECT_ATTEMPTS' }),
   },
   gateway: {
-    wsUrl: Env.string({ default: 'ws://localhost:18789', env: 'OPENCLAW_WS_URL' }),
-    token: Env.string({ default: '', env: 'OPENCLAW_DEVICE_TOKEN' }),
+    url: Env.string({ default: 'http://localhost:18789', env: 'OPENCLAW_GATEWAY_URL' }),
+    hookToken: Env.string({ default: '', env: 'OPENCLAW_HOOK_TOKEN' }),
   },
   consumer: {
     name: Env.string({ default: 'openclaw-main', env: 'NATS_CONSUMER_NAME' }),

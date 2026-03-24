@@ -58,7 +58,6 @@ export class ConsumerController extends BaseController {
           try {
             const injectStart = performance.now();
             await this.gatewayClient.inject({
-              to: route.target,
               message: this.formatMessage(envelope),
               eventId: envelope.id,
             });

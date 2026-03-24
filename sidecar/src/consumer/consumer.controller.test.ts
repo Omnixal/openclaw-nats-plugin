@@ -86,7 +86,6 @@ describe('ConsumerController', () => {
     expect(mockGatewayClient.inject).toHaveBeenCalledTimes(1);
 
     const injectCall = mockGatewayClient.inject.mock.calls[0][0];
-    expect(injectCall.to).toBe('main');
     expect(injectCall.message).toBe(`[NATS:${envelope.subject}] ${JSON.stringify(envelope.payload)}`);
     expect(injectCall.eventId).toBe(envelope.id);
 
@@ -186,20 +185,6 @@ describe('ConsumerController', () => {
     expect(result).toBe('[NATS:agent.events.order.placed] {"orderId":123}');
   });
 
-  it('should use target from matching route', async () => {
-    mockRouterService.findMatchingRoutes = mock(() =>
-      Promise.resolve([makeDefaultRoute('worker-2')]),
-    );
-
-    const envelope = makeEnvelope();
-    const msg = makeMockMessage(envelope);
-
-    await (service as any).handleInbound(msg);
-
-    const injectCall = mockGatewayClient.inject.mock.calls[0][0];
-    expect(injectCall.to).toBe('worker-2');
-  });
-
   it('should deliver to multiple matching routes', async () => {
     mockRouterService.findMatchingRoutes = mock(() =>
       Promise.resolve([makeDefaultRoute('main'), makeDefaultRoute('worker-2')]),
@@ -211,8 +196,8 @@ describe('ConsumerController', () => {
     await (service as any).handleInbound(msg);
 
     expect(mockGatewayClient.inject).toHaveBeenCalledTimes(2);
-    expect(mockGatewayClient.inject.mock.calls[0][0].to).toBe('main');
-    expect(mockGatewayClient.inject.mock.calls[1][0].to).toBe('worker-2');
+    expect(mockGatewayClient.inject.mock.calls[0][0].message).toContain(envelope.subject);
+    expect(mockGatewayClient.inject.mock.calls[1][0].message).toContain(envelope.subject);
   });
 
   it('should include eventId in inject payload', async () => {

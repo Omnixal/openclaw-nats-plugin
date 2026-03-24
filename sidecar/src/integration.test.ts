@@ -18,7 +18,7 @@ describe('nats-sidecar integration', () => {
     process.env.NATS_PLUGIN_API_KEY = API_KEY;
     process.env.NATS_SERVERS = nats.url;
     process.env.NATS_MAX_RECONNECT_ATTEMPTS = '3';
-    process.env.OPENCLAW_WS_URL = 'ws://127.0.0.1:19999';
+    process.env.OPENCLAW_GATEWAY_URL = 'http://127.0.0.1:19999';
     process.env.NODE_ENV = 'test';
 
     // 3. Dynamic import so @Module decorator sees the env vars above

@@ -44,7 +44,7 @@ export class HealthService extends BaseService {
       },
       gateway: {
         connected: this.gateway.isAlive(),
-        url: this.config.get('gateway.wsUrl'),
+        url: this.config.get('gateway.url'),
       },
       pendingCount,
       uptimeSeconds: Math.floor((Date.now() - this.startedAt) / 1000),
