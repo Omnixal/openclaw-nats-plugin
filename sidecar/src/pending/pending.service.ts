@@ -19,8 +19,8 @@ export class PendingService extends BaseService {
     });
   }
 
-  async fetchPending(sessionKey: string): Promise<DbPendingEvent[]> {
-    return this.repo.fetchPending(sessionKey);
+  async fetchPending(sessionKey: string, limit?: number): Promise<DbPendingEvent[]> {
+    return this.repo.fetchPending(sessionKey, limit);
   }
 
   async markDelivered(ids: string[]): Promise<void> {

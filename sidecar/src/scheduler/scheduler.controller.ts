@@ -124,7 +124,7 @@ export class SchedulerController extends BaseController {
 
   // ── Queue Handlers ────────────────────────────────────────────────
 
-  @Subscribe('scheduler.fire.*', { group: 'scheduler-handler' })
+  @Subscribe('scheduler.fire.*', { group: 'scheduler-cron-handler' })
   async handleFire(message: Message<unknown>): Promise<void> {
     const jobName = message.pattern?.split('.').pop();
     if (jobName) {
@@ -132,7 +132,7 @@ export class SchedulerController extends BaseController {
     }
   }
 
-  @Subscribe('scheduler.timer.*', { group: 'scheduler-handler' })
+  @Subscribe('scheduler.timer.*', { group: 'scheduler-timer-handler' })
   async handleTimerFire(message: Message<unknown>): Promise<void> {
     const timerName = message.pattern?.split('.').pop();
     if (timerName) {

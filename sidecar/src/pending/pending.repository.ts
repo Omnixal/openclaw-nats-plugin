@@ -28,12 +28,16 @@ export class PendingRepository extends BaseService {
       .onConflictDoNothing();
   }
 
-  async fetchPending(sessionKey: string): Promise<DbPendingEvent[]> {
-    return this.db
+  async fetchPending(sessionKey: string, limit?: number): Promise<DbPendingEvent[]> {
+    const query = this.db
       .select()
       .from(pendingEvents)
       .where(and(eq(pendingEvents.sessionKey, sessionKey), isNull(pendingEvents.deliveredAt)))
       .orderBy(desc(pendingEvents.priority));
+    if (limit !== undefined) {
+      return query.limit(limit);
+    }
+    return query;
   }
 
   async markDelivered(ids: string[]): Promise<void> {

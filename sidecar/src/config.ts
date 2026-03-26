@@ -28,6 +28,10 @@ export const envSchema = {
     ttlSeconds: Env.number({ default: 60, env: 'NATS_DEDUP_TTL_SECONDS' }),
     cleanupIntervalMs: Env.number({ default: 300000, env: 'NATS_DEDUP_CLEANUP_INTERVAL_MS' }),
   },
+  pending: {
+    flushIntervalMs: Env.number({ default: 30000, env: 'NATS_PENDING_FLUSH_INTERVAL_MS' }),
+    flushBatchSize: Env.number({ default: 10, env: 'NATS_PENDING_FLUSH_BATCH_SIZE' }),
+  },
   auth: {
     pluginApiKey: Env.string({ default: 'dev-nats-plugin-key', env: 'NATS_PLUGIN_API_KEY' }),
   },

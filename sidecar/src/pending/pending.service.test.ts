@@ -87,7 +87,7 @@ describe('PendingService', () => {
     const result = await service.fetchPending('session-abc');
 
     expect(result).toEqual(fakeEvents);
-    expect(repo.fetchPending).toHaveBeenCalledWith('session-abc');
+    expect(repo.fetchPending).toHaveBeenCalledWith('session-abc', undefined);
   });
 
   it('should delegate markDelivered to repo', async () => {

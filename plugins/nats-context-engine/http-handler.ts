@@ -2,20 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import http from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const ROUTE_PREFIX = '/nats-dashboard';
 const SIDECAR_URL = process.env.NATS_SIDECAR_URL || 'http://127.0.0.1:3104';
 const API_KEY = process.env.NATS_PLUGIN_API_KEY || 'dev-nats-plugin-key';
-
-let sidecarParsed: URL;
-try {
-  sidecarParsed = new URL(SIDECAR_URL);
-} catch (e) {
-  console.error(`[nats-dashboard] Invalid NATS_SIDECAR_URL: ${SIDECAR_URL}`, e);
-  sidecarParsed = new URL('http://127.0.0.1:3104');
-}
 
 // Stable location (copied during setup) takes priority over in-package dist
 const STABLE_DIST = path.join(homedir(), '.openclaw', 'nats-plugin', 'dashboard');
@@ -46,7 +37,7 @@ export function createDashboardHandler() {
       subPath = url.pathname;
     }
 
-    // Debug endpoint: /nats-dashboard/api/_debug (or /api/_debug if prefix stripped)
+    // Debug endpoint
     if (subPath === '/api/_debug') {
       res.statusCode = 200;
       res.setHeader('content-type', 'application/json');
@@ -55,15 +46,8 @@ export function createDashboardHandler() {
         pathname: url.pathname,
         subPath,
         sidecarUrl: SIDECAR_URL,
-        sidecarHost: sidecarParsed.hostname,
-        sidecarPort: sidecarParsed.port,
-        apiKey: API_KEY ? `${API_KEY.slice(0, 4)}...` : '(not set)',
         distDir: DIST_DIR,
         distExists: existsSync(path.join(DIST_DIR, 'index.html')),
-        env: {
-          NATS_SIDECAR_URL: process.env.NATS_SIDECAR_URL || '(default)',
-          NATS_PLUGIN_API_KEY: process.env.NATS_PLUGIN_API_KEY ? 'set' : '(default)',
-        },
       }, null, 2));
       return true;
     }
@@ -91,6 +75,7 @@ async function proxyToSidecar(
   res: ServerResponse,
 ): Promise<boolean> {
   try {
+    const targetUrl = `${SIDECAR_URL}${subPath}${search}`;
     const headers: Record<string, string> = {
       'Authorization': `Bearer ${API_KEY}`,
     };
@@ -103,68 +88,28 @@ async function proxyToSidecar(
       body = await readBody(req);
     }
 
-    // Use node:http directly — global fetch() may be intercepted by gateway SSRF guards
-    const upstream = await httpRequest({
-      hostname: sidecarParsed.hostname,
-      port: Number(sidecarParsed.port),
-      path: `${subPath}${search}`,
+    const upstream = await fetch(targetUrl, {
       method: req.method || 'GET',
       headers,
-      timeout: 10_000,
-    }, body);
+      body,
+      signal: AbortSignal.timeout(10_000),
+    });
 
-    res.statusCode = upstream.statusCode;
-    res.setHeader('content-type', upstream.headers['content-type'] || 'application/json');
-    res.end(upstream.body);
+    res.statusCode = upstream.status;
+    res.setHeader('content-type', upstream.headers.get('content-type') || 'application/json');
+    const responseBody = await upstream.text();
+    res.end(responseBody);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : undefined;
-    console.error(`[nats-dashboard] Sidecar proxy error: ${message} (target=${sidecarParsed.hostname}:${sidecarParsed.port}${subPath})`);
-    if (stack) console.error(stack);
+    console.error(`[nats-dashboard] Sidecar proxy error: ${message} (url=${SIDECAR_URL}${subPath})`);
     res.statusCode = 502;
     res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({
-      error: 'Sidecar unreachable',
-      detail: message,
-      target: `${sidecarParsed.hostname}:${sidecarParsed.port}${subPath}`,
-      sidecarUrl: SIDECAR_URL,
-      hint: 'Open /nats-dashboard/api/_debug for full diagnostics',
-    }));
+    res.end(JSON.stringify({ error: 'Sidecar unreachable', detail: message }));
   }
   return true;
 }
 
 const MAX_BODY_BYTES = 1_048_576; // 1MB
-
-interface HttpResponse {
-  statusCode: number;
-  headers: Record<string, string | string[] | undefined>;
-  body: string;
-}
-
-function httpRequest(
-  opts: http.RequestOptions,
-  body?: string,
-): Promise<HttpResponse> {
-  return new Promise((resolve, reject) => {
-    const req = http.request(opts, (res) => {
-      const chunks: Buffer[] = [];
-      res.on('data', (chunk: Buffer) => chunks.push(chunk));
-      res.on('end', () => {
-        resolve({
-          statusCode: res.statusCode || 500,
-          headers: res.headers,
-          body: Buffer.concat(chunks).toString(),
-        });
-      });
-      res.on('error', reject);
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('Request timeout')); });
-    if (body) req.write(body);
-    req.end();
-  });
-}
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
