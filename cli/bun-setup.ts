@@ -7,7 +7,7 @@ import {
 } from './paths';
 import { downloadNatsServer, NATS_VERSION } from './download-nats';
 import { writeNatsConfig } from './nats-config';
-import { generateApiKey, getExistingApiKey, writeEnvVariables } from './env-writer';
+import { generateApiKey, getExistingApiKey, getExistingHookToken, writeEnvVariables } from './env-writer';
 import {
   getServiceManager, generateSystemdUnit, generateLaunchdPlist,
   installSystemdUnit, installLaunchdPlist, startService, stopService,
@@ -48,6 +48,7 @@ export async function bunSetup(): Promise<void> {
 
   // 6. Reuse existing API key or generate new one
   const apiKey = getExistingApiKey() ?? generateApiKey();
+  const hookToken = getExistingHookToken() ?? generateApiKey();
 
   // 7. Write env variables (to OpenClaw .env for hooks, and sidecar .env for the service)
   const envVars: Record<string, string> = {
@@ -55,6 +56,7 @@ export async function bunSetup(): Promise<void> {
     NATS_PLUGIN_API_KEY: apiKey,
     NATS_SERVERS: 'nats://127.0.0.1:4222',
     OPENCLAW_GATEWAY_URL: 'http://127.0.0.1:18789',
+    OPENCLAW_HOOK_TOKEN: hookToken,
   };
   writeEnvVariables(envVars);
 
@@ -66,6 +68,7 @@ export async function bunSetup(): Promise<void> {
     `NATS_SERVERS=nats://127.0.0.1:4222`,
     `NATS_PLUGIN_API_KEY=${apiKey}`,
     `OPENCLAW_GATEWAY_URL=http://127.0.0.1:18789`,
+    `OPENCLAW_HOOK_TOKEN=${hookToken}`,
   ].join('\n');
   writeFileSync(join(SIDECAR_DIR, '.env'), sidecarEnv, 'utf-8');
 

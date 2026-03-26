@@ -31,6 +31,7 @@ services:
       - NATS_SERVERS=nats://nats:4222
       - OPENCLAW_GATEWAY_URL=http://host.docker.internal:18789
       - NATS_PLUGIN_API_KEY=${NATS_PLUGIN_API_KEY}
+      - OPENCLAW_HOOK_TOKEN=${OPENCLAW_HOOK_TOKEN}
     volumes:
       - sidecar-data:/app/data
     restart: unless-stopped

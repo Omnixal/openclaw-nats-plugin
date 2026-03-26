@@ -14,6 +14,13 @@ export function getExistingApiKey(): string | null {
   return match?.[1]?.trim() || null;
 }
 
+export function getExistingHookToken(): string | null {
+  if (!existsSync(OPENCLAW_ENV)) return null;
+  const content = readFileSync(OPENCLAW_ENV, 'utf-8');
+  const match = content.match(/^OPENCLAW_HOOK_TOKEN=(.+)$/m);
+  return match?.[1]?.trim() || null;
+}
+
 export function mergeEnvContent(
   existingContent: string,
   variables: Record<string, string>,

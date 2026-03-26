@@ -2,7 +2,7 @@ import { mkdirSync, cpSync, writeFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { PLUGIN_DIR, DOCKER_DIR, DASHBOARD_DIR, STATE_FILE, type PluginState } from './paths';
-import { generateApiKey, getExistingApiKey, writeEnvVariables } from './env-writer';
+import { generateApiKey, getExistingApiKey, getExistingHookToken, writeEnvVariables } from './env-writer';
 
 /**
  * Try to copy dashboard dist into a running OpenClaw container's volume.
@@ -58,9 +58,10 @@ export async function dockerSetup(): Promise<void> {
   cpSync(templateDir, DOCKER_DIR, { recursive: true });
   cpSync(sidecarSrc, join(DOCKER_DIR, 'sidecar'), { recursive: true });
 
-  // 2. Reuse existing API key or generate new one
+  // 2. Reuse existing API key and hook token or generate new ones
   const apiKey = getExistingApiKey() ?? generateApiKey();
-  writeFileSync(join(DOCKER_DIR, '.env'), `NATS_PLUGIN_API_KEY=${apiKey}\n`);
+  const hookToken = getExistingHookToken() ?? generateApiKey();
+  writeFileSync(join(DOCKER_DIR, '.env'), `NATS_PLUGIN_API_KEY=${apiKey}\nOPENCLAW_HOOK_TOKEN=${hookToken}\n`);
 
   // 3. Build and start
   console.log('Building and starting containers...');
@@ -71,6 +72,8 @@ export async function dockerSetup(): Promise<void> {
     NATS_SIDECAR_URL: 'http://127.0.0.1:3104',
     NATS_PLUGIN_API_KEY: apiKey,
     NATS_SERVERS: 'nats://127.0.0.1:4222',
+    OPENCLAW_GATEWAY_URL: 'http://127.0.0.1:18789',
+    OPENCLAW_HOOK_TOKEN: hookToken,
   });
 
   // 5. Copy dashboard dist into OpenClaw container (host→container bridge)
