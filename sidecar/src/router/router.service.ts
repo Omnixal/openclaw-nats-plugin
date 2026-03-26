@@ -1,6 +1,7 @@
 import { Service, BaseService } from '@onebun/core';
 import { RouterRepository } from './router.repository';
 import type { DbEventRoute } from '../db/schema';
+import type { FilterExpression } from '../route-filter/filter-expression';
 import { ulid } from 'ulid';
 
 @Service()
@@ -40,23 +41,27 @@ export class RouterService extends BaseService {
   }
 
   async subscribe(
+    name: string,
     pattern: string,
     target: string = 'main',
     priority: number = 5,
+    filter?: FilterExpression | null,
     customPayload?: unknown,
   ): Promise<{ route: DbEventRoute; created: boolean }> {
     return this.repo.upsert({
       id: ulid(),
+      name,
       pattern,
       target,
       enabled: true,
       priority,
+      filter: filter ?? null,
       customPayload: customPayload ?? null,
       createdAt: new Date(),
     });
   }
 
-  async updateById(id: string, fields: { target?: string; priority?: number; enabled?: boolean; customPayload?: unknown }): Promise<DbEventRoute | null> {
+  async updateById(id: string, fields: { target?: string; priority?: number; enabled?: boolean; customPayload?: unknown; filter?: FilterExpression | null }): Promise<DbEventRoute | null> {
     return this.repo.updateById(id, fields);
   }
 
@@ -64,8 +69,12 @@ export class RouterService extends BaseService {
     await this.repo.recordDelivery(routeId, subject, lagMs);
   }
 
-  async unsubscribe(pattern: string): Promise<boolean> {
-    return this.repo.deleteByPattern(pattern);
+  async incrementFilterDropCount(routeId: string): Promise<void> {
+    await this.repo.incrementFilterDropCount(routeId);
+  }
+
+  async unsubscribeByName(name: string): Promise<boolean> {
+    return this.repo.deleteByName(name);
   }
 
   async deleteById(id: string): Promise<boolean> {

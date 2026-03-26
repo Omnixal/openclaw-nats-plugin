@@ -3,10 +3,13 @@ import { RouterController } from './router.controller';
 
 const makeRoute = (overrides: Record<string, any> = {}) => ({
   id: 'route-1',
+  name: 'agent.events.>',
   pattern: 'agent.events.>',
   target: 'main',
   enabled: true,
   priority: 5,
+  filter: null,
+  filterDropCount: 0,
   createdAt: new Date(),
   ...overrides,
 });
@@ -15,8 +18,8 @@ function createController() {
   const mockRouterService = {
     listRoutes: mock(() => Promise.resolve([makeRoute()])),
     status: mock(() => Promise.resolve({ configured: true, count: 1 })),
-    subscribe: mock((pattern: string, target: string, priority: number) =>
-      Promise.resolve({ route: makeRoute({ pattern, target, priority }), created: true }),
+    subscribe: mock((name: string, pattern: string, target: string, priority: number, filter: any) =>
+      Promise.resolve({ route: makeRoute({ name, pattern, target, priority, filter }), created: true }),
     ),
     deleteById: mock(() => Promise.resolve(true)),
   };
@@ -72,13 +75,13 @@ describe('RouterController.createRoute', () => {
       priority: 3,
     }) as any;
     expect(res.status).toBe(200);
-    expect(mockRouterService.subscribe).toHaveBeenCalledWith('agent.events.>', 'worker', 3, undefined);
+    expect(mockRouterService.subscribe).toHaveBeenCalledWith('agent.events.>', 'agent.events.>', 'worker', 3, null, undefined);
   });
 
   it('uses default target and priority when not provided', async () => {
     const { ctrl, mockRouterService } = createController();
     await ctrl.createRoute({ pattern: 'agent.events.test' });
-    expect(mockRouterService.subscribe).toHaveBeenCalledWith('agent.events.test', 'main', 5, undefined);
+    expect(mockRouterService.subscribe).toHaveBeenCalledWith('agent.events.test', 'agent.events.test', 'main', 5, null, undefined);
   });
 });
 

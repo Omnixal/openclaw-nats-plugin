@@ -164,20 +164,31 @@ export default function (api: any) {
 
   api.registerTool({
     name: 'nats_subscribe',
-    description: 'Subscribe to events matching a pattern. Matched events will be delivered to the target session as messages.',
+    description: 'Subscribe to events matching a pattern. Matched events will be delivered to the target session as messages. Multiple subscriptions on the same pattern are possible by specifying different names with payload filters.',
     parameters: {
       type: 'object',
       properties: {
         pattern: { type: 'string', description: 'Subject pattern (exact, or wildcard with * for one level, > for all descendants)' },
+        name: { type: 'string', description: 'Unique route name (default: same as pattern). Use different names to create multiple subscriptions on the same pattern.' },
         target: { type: 'string', description: 'Session key to deliver to (default: main)' },
         payload: { type: 'object', description: 'Additional context payload that will be merged with event data on delivery' },
+        filter: {
+          type: 'object',
+          description: 'Payload filter expression. Only events matching the filter will be delivered. Format: { logic: "and"|"or", conditions: [{ field: "dot.path", op: "eq"|"neq"|"gt"|"gte"|"lt"|"lte"|"in"|"nin"|"contains"|"exists", value: ... }] }',
+        },
       },
       required: ['pattern'],
     },
     async execute(_id: string, params: any) {
       const result = await sidecarFetch('/api/routes', {
         method: 'POST',
-        body: JSON.stringify({ pattern: params.pattern, target: params.target ?? 'main', payload: params.payload }),
+        body: JSON.stringify({
+          pattern: params.pattern,
+          name: params.name,
+          target: params.target ?? 'main',
+          payload: params.payload,
+          filter: params.filter,
+        }),
       });
       return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     },
@@ -343,7 +354,7 @@ export default function (api: any) {
 
   api.registerTool({
     name: 'nats_route_update',
-    description: 'Update an existing route subscription. Can change target session, priority, enabled status, or custom payload.',
+    description: 'Update an existing route subscription. Can change target session, priority, enabled status, custom payload, or filter.',
     parameters: {
       type: 'object',
       properties: {
@@ -352,6 +363,7 @@ export default function (api: any) {
         priority: { type: 'number', description: 'New priority (1-10)' },
         enabled: { type: 'boolean', description: 'Enable or disable the route' },
         payload: { type: 'object', description: 'New custom payload to merge with event data on delivery' },
+        filter: { type: ['object', 'null'], description: 'New payload filter expression (null to clear). Format: { logic: "and"|"or", conditions: [...] }' },
       },
       required: ['id'],
     },

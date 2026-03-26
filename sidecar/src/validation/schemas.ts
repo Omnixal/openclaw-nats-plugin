@@ -18,11 +18,24 @@ export const markDeliveredBodySchema = type({
 
 export type MarkDeliveredBody = typeof markDeliveredBodySchema.infer;
 
+export const filterConditionSchema = type({
+  field: 'string',
+  op: "'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'contains' | 'exists'",
+  value: 'unknown',
+});
+
+export const filterExpressionSchema = type({
+  logic: "'and' | 'or'",
+  conditions: filterConditionSchema.array(),
+});
+
 export const createRouteBodySchema = type({
   pattern: 'string',
+  'name?': 'string',
   'target?': 'string',
   'priority?': 'number',
   'payload?': 'unknown',
+  'filter?': filterExpressionSchema,
 });
 
 export type CreateRouteBody = typeof createRouteBodySchema.infer;
@@ -42,6 +55,7 @@ export const updateRouteBodySchema = type({
   'priority?': 'number',
   'enabled?': 'boolean',
   'payload?': 'unknown',
+  'filter?': 'unknown',
 });
 
 export type UpdateRouteBody = typeof updateRouteBodySchema.infer;

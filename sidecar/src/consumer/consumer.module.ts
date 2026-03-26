@@ -5,9 +5,10 @@ import { PendingModule } from '../pending/pending.module';
 import { RouterModule } from '../router/router.module';
 import { MetricsModule } from '../metrics/metrics.module';
 import { LogModule } from '../logs/log.module';
+import { RouteFilterModule } from '../route-filter/route-filter.module';
 
 @Module({
-  imports: [PreHandlersModule, PendingModule, RouterModule, MetricsModule, LogModule],
+  imports: [PreHandlersModule, PendingModule, RouterModule, MetricsModule, LogModule, RouteFilterModule],
   controllers: [ConsumerController],
 })
 export class ConsumerModule {}

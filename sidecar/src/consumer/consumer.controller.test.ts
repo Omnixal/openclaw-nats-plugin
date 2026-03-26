@@ -29,7 +29,7 @@ function makeMockMessage(envelope: NatsEventEnvelope): Message<NatsEventEnvelope
 }
 
 function makeDefaultRoute(target: string = 'main') {
-  return { id: 'route-1', pattern: 'agent.events.>', target, enabled: true, priority: 5, createdAt: new Date() };
+  return { id: 'route-1', name: 'agent.events.>', pattern: 'agent.events.>', target, enabled: true, priority: 5, filter: null, filterDropCount: 0, createdAt: new Date() };
 }
 
 describe('ConsumerController', () => {
@@ -59,7 +59,8 @@ describe('ConsumerController', () => {
 
     const mockMetrics = { recordPublish: mock(() => {}), recordConsume: mock(() => {}), getAll: mock(() => []) };
     const mockLogService = { logDelivery: mock(() => Promise.resolve()), logError: mock(() => Promise.resolve()), logCronFire: mock(() => Promise.resolve()) };
-    service = new ConsumerController(mockPipeline, mockGatewayClient, mockPendingService, mockRouterService, mockMetrics as any, mockLogService as any);
+    const mockRouteFilter = { evaluate: mock(() => true) };
+    service = new ConsumerController(mockPipeline, mockGatewayClient, mockPendingService, mockRouterService, mockMetrics as any, mockLogService as any, mockRouteFilter as any);
     (service as any).logger = {
       debug: mock(() => {}),
       info: mock(() => {}),

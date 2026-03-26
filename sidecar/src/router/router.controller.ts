@@ -37,10 +37,13 @@ export class RouterController extends BaseController {
     const routes = await this.routerService.listRoutes();
     const result = routes.map(r => ({
       id: r.id,
+      name: r.name,
       pattern: r.pattern,
       target: r.target,
       priority: r.priority,
       enabled: r.enabled,
+      filter: r.filter ?? null,
+      filterDropCount: r.filterDropCount ?? 0,
       customPayload: r.customPayload ?? null,
       lastDeliveredAt: r.lastDeliveredAt?.toISOString() ?? null,
       lastEventSubject: r.lastEventSubject ?? null,
@@ -67,10 +70,13 @@ export class RouterController extends BaseController {
     if (!isValidAgentSubject(body.pattern)) {
       return this.error('pattern must start with "agent.events." followed by at least one token and must not end with "."', 400, 400);
     }
+    const name = body.name ?? body.pattern;
     const { route, created } = await this.routerService.subscribe(
+      name,
       body.pattern,
       body.target ?? 'main',
       body.priority ?? 5,
+      body.filter ?? null,
       body.payload,
     );
     return this.success({ ...route, created });
@@ -81,8 +87,12 @@ export class RouterController extends BaseController {
     @Param('id') id: string,
     @Body(updateRouteBodySchema) body: UpdateRouteBody,
   ): Promise<OneBunResponse> {
-    const { payload: customPayload, ...rest } = body;
-    const updated = await this.routerService.updateById(id, { ...rest, ...(customPayload !== undefined ? { customPayload } : {}) });
+    const { payload: customPayload, filter, ...rest } = body;
+    const updated = await this.routerService.updateById(id, {
+      ...rest,
+      ...(customPayload !== undefined ? { customPayload } : {}),
+      ...(filter !== undefined ? { filter: filter as any } : {}),
+    });
     if (!updated) {
       return this.error('Route not found', 404, 404);
     }

@@ -5,6 +5,7 @@ import { PendingService } from '../pending/pending.service';
 import { RouterService } from '../router/router.service';
 import { MetricsService } from '../metrics/metrics.service';
 import { LogService } from '../logs/log.service';
+import { RouteFilterService } from '../route-filter/route-filter.service';
 import type { NatsEventEnvelope } from '../publisher/envelope';
 
 @Controller('/consumer')
@@ -16,6 +17,7 @@ export class ConsumerController extends BaseController {
     private routerService: RouterService,
     private metrics: MetricsService,
     private logService: LogService,
+    private routeFilter: RouteFilterService,
   ) {
     super();
   }
@@ -55,6 +57,14 @@ export class ConsumerController extends BaseController {
       // Deliver to each matching target
       if (this.gatewayClient.isAlive()) {
         for (const route of routes) {
+          if (route.filter) {
+            const passed = this.routeFilter.evaluate(envelope.payload, route.filter);
+            if (!passed) {
+              this.logger.debug(`Event ${envelope.id} filtered out by route ${route.name} (${route.pattern})`);
+              await this.routerService.incrementFilterDropCount(route.id);
+              continue;
+            }
+          }
           try {
             const composedPayload = this.composePayload(envelope, route);
             const injectStart = performance.now();

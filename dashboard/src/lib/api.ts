@@ -47,12 +47,26 @@ export async function markDelivered(ids: string[]): Promise<void> {
 
 // ── Routes ──────────────────────────────────────────────────────────
 
+export interface FilterCondition {
+  field: string;
+  op: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'contains' | 'exists';
+  value: unknown;
+}
+
+export interface FilterExpression {
+  logic: 'and' | 'or';
+  conditions: FilterCondition[];
+}
+
 export interface EventRoute {
   id: string;
+  name: string;
   pattern: string;
   target: string;
   priority: number;
   enabled: boolean;
+  filter: FilterExpression | null;
+  filterDropCount: number;
   customPayload: unknown;
   deliveryCount: number;
   lastDeliveredAt: string | null;
@@ -67,9 +81,11 @@ export async function getRoutes(): Promise<EventRoute[]> {
 
 export async function createRoute(body: {
   pattern: string;
+  name?: string;
   target?: string;
   priority?: number;
   payload?: unknown;
+  filter?: FilterExpression;
 }): Promise<EventRoute> {
   return fetchJSON('/routes', {
     method: 'POST',
@@ -83,6 +99,7 @@ export interface UpdateRouteBody {
   priority?: number;
   enabled?: boolean;
   payload?: unknown;
+  filter?: FilterExpression | null;
 }
 
 export async function updateRoute(id: string, body: UpdateRouteBody): Promise<EventRoute> {

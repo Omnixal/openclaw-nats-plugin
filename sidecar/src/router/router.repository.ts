@@ -36,11 +36,13 @@ export class RouterRepository extends BaseService {
       .insert(eventRoutes)
       .values(route)
       .onConflictDoUpdate({
-        target: eventRoutes.pattern,
+        target: eventRoutes.name,
         set: {
+          pattern: sql`excluded.pattern`,
           target: sql`excluded.target`,
           priority: sql`excluded.priority`,
           enabled: sql`excluded.enabled`,
+          filter: sql`excluded.filter`,
           customPayload: sql`excluded.custom_payload`,
         },
       })
@@ -50,7 +52,7 @@ export class RouterRepository extends BaseService {
     return { route: result, created };
   }
 
-  async updateById(id: string, fields: Partial<Pick<DbEventRoute, 'target' | 'priority' | 'enabled' | 'customPayload'>>): Promise<DbEventRoute | null> {
+  async updateById(id: string, fields: Partial<Pick<DbEventRoute, 'target' | 'priority' | 'enabled' | 'customPayload' | 'filter'>>): Promise<DbEventRoute | null> {
     const [result] = await this.db.update(eventRoutes)
       .set(fields)
       .where(eq(eventRoutes.id, id))
@@ -69,13 +71,21 @@ export class RouterRepository extends BaseService {
       .where(eq(eventRoutes.id, routeId));
   }
 
+  async incrementFilterDropCount(routeId: string): Promise<void> {
+    await this.db.update(eventRoutes)
+      .set({
+        filterDropCount: sql`${eventRoutes.filterDropCount} + 1`,
+      })
+      .where(eq(eventRoutes.id, routeId));
+  }
+
   async deleteById(id: string): Promise<boolean> {
     const result = await this.db.delete(eventRoutes).where(eq(eventRoutes.id, id)).returning();
     return result.length > 0;
   }
 
-  async deleteByPattern(pattern: string): Promise<boolean> {
-    const result = await this.db.delete(eventRoutes).where(eq(eventRoutes.pattern, pattern)).returning();
+  async deleteByName(name: string): Promise<boolean> {
+    const result = await this.db.delete(eventRoutes).where(eq(eventRoutes.name, name)).returning();
     return result.length > 0;
   }
 

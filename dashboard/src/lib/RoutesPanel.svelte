@@ -17,10 +17,12 @@
 
   // Create form state
   let showForm: boolean = $state(false);
+  let formName: string = $state('');
   let formPattern: string = $state('agent.events.');
   let formTarget: string = $state('main');
   let formPriority: number = $state(5);
   let formPayload: string = $state('');
+  let formFilter: string = $state('');
   let formError: string | null = $state(null);
   let actionError: string | null = $state(null);
   let loading: boolean = $state(false);
@@ -32,6 +34,7 @@
   let editPriority: number = $state(5);
   let editEnabled: boolean = $state(true);
   let editPayload: string = $state('');
+  let editFilter: string = $state('');
   let editError: string | null = $state(null);
   let showDeleteConfirm: boolean = $state(false);
 
@@ -42,10 +45,12 @@
   }
 
   function resetForm() {
+    formName = '';
     formPattern = 'agent.events.';
     formTarget = 'main';
     formPriority = 5;
     formPayload = '';
+    formFilter = '';
     formError = null;
     showForm = false;
   }
@@ -75,13 +80,19 @@
       formError = 'Payload must be valid JSON';
       return;
     }
+    if (formFilter.trim() && parseJsonPayload(formFilter) === undefined) {
+      formError = 'Filter must be valid JSON';
+      return;
+    }
     try {
       loading = true;
       await createRoute({
         pattern: formPattern,
+        name: formName.trim() || undefined,
         target: formTarget || undefined,
         priority: formPriority,
         payload: parseJsonPayload(formPayload),
+        filter: formFilter.trim() ? (parseJsonPayload(formFilter) as any) : undefined,
       });
       resetForm();
       onRefresh();
@@ -99,6 +110,7 @@
     editPriority = route.priority;
     editEnabled = route.enabled;
     editPayload = formatPayload(route.customPayload);
+    editFilter = route.filter ? JSON.stringify(route.filter, null, 2) : '';
     editError = null;
     showDeleteConfirm = false;
   }
@@ -115,6 +127,10 @@
       editError = 'Payload must be valid JSON';
       return;
     }
+    if (editFilter.trim() && parseJsonPayload(editFilter) === undefined) {
+      editError = 'Filter must be valid JSON';
+      return;
+    }
     try {
       editError = null;
       loading = true;
@@ -123,6 +139,7 @@
         priority: editPriority,
         enabled: editEnabled,
         payload: editPayload.trim() ? parseJsonPayload(editPayload) : null,
+        filter: editFilter.trim() ? (parseJsonPayload(editFilter) as any) : null,
       });
       closeModal();
       onRefresh();
@@ -152,7 +169,7 @@
 {#if selectedRoute}
   <Modal
     open={true}
-    title="Route: {selectedRoute.pattern}"
+    title="Route: {selectedRoute.name}"
     onClose={closeModal}
   >
     {#snippet children()}
@@ -175,7 +192,7 @@
 
         {#if showDeleteConfirm}
           <div class="rounded-md border border-destructive/50 bg-destructive/5 p-4 space-y-3">
-            <p class="text-sm">Are you sure you want to delete route <span class="font-mono font-semibold">{selectedRoute.pattern}</span>?</p>
+            <p class="text-sm">Are you sure you want to delete route <span class="font-mono font-semibold">{selectedRoute.name}</span>?</p>
             <p class="text-xs text-muted-foreground">This action cannot be undone.</p>
             <div class="flex gap-2">
               <Button variant="destructive" size="sm" onclick={handleDelete} disabled={loading}>
@@ -227,8 +244,21 @@
               ></textarea>
             </div>
 
+            <div class="space-y-1">
+              <label class="text-xs text-muted-foreground" for="edit-filter">Filter (JSON)</label>
+              <textarea
+                id="edit-filter"
+                bind:value={editFilter}
+                class="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-mono resize-y min-h-16"
+                placeholder={'{"logic": "and", "conditions": [{"field": "status", "op": "eq", "value": "active"}]}'}
+                rows="3"
+              ></textarea>
+            </div>
+
             <div class="text-xs text-muted-foreground pt-2 space-y-1">
+              <div>Pattern: <span class="font-mono font-medium text-foreground">{selectedRoute.pattern}</span></div>
               <div>Deliveries: <span class="font-medium text-foreground">{selectedRoute.deliveryCount}</span></div>
+              <div>Filtered out: <span class="font-medium text-foreground">{selectedRoute.filterDropCount}</span></div>
               <div>Last delivered: <span class="font-medium text-foreground">{selectedRoute.lastDeliveredAt ? relativeAge(new Date(selectedRoute.lastDeliveredAt).getTime()) : '\u2014'}</span></div>
               {#if selectedRoute.lastEventSubject}
                 <div>Last subject: <span class="font-mono font-medium text-foreground">{selectedRoute.lastEventSubject}</span></div>
@@ -276,15 +306,27 @@
         {#if formError}
           <div class="rounded-md bg-destructive/10 p-2 text-xs text-destructive">{formError}</div>
         {/if}
-        <div class="space-y-1">
-          <label class="text-xs text-muted-foreground" for="route-pattern">Pattern</label>
-          <input
-            id="route-pattern"
-            type="text"
-            bind:value={formPattern}
-            class="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-            placeholder="agent.events.>"
-          />
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-1">
+            <label class="text-xs text-muted-foreground" for="route-pattern">Pattern</label>
+            <input
+              id="route-pattern"
+              type="text"
+              bind:value={formPattern}
+              class="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+              placeholder="agent.events.>"
+            />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs text-muted-foreground" for="route-name">Name <span class="text-muted-foreground">(optional)</span></label>
+            <input
+              id="route-name"
+              type="text"
+              bind:value={formName}
+              class="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+              placeholder="auto from pattern"
+            />
+          </div>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div class="space-y-1">
@@ -319,6 +361,16 @@
             rows="2"
           ></textarea>
         </div>
+        <div class="space-y-1">
+          <label class="text-xs text-muted-foreground" for="route-filter">Filter (JSON)</label>
+          <textarea
+            id="route-filter"
+            bind:value={formFilter}
+            class="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-mono resize-y min-h-16"
+            placeholder={'{"logic": "and", "conditions": [{"field": "amount", "op": "gt", "value": 10000}]}'}
+            rows="2"
+          ></textarea>
+        </div>
         <div class="flex gap-2">
           <Button size="sm" onclick={handleCreate} disabled={loading}>
             {loading ? 'Creating...' : 'Create'}
@@ -334,6 +386,7 @@
       <Table.Root>
         <Table.Header>
           <Table.Row>
+            <Table.Head>Name</Table.Head>
             <Table.Head>Pattern</Table.Head>
             <Table.Head>Target</Table.Head>
             <Table.Head>Priority</Table.Head>
@@ -346,6 +399,12 @@
         <Table.Body>
           {#each routes as route}
             <Table.Row class="cursor-pointer hover:bg-muted/50" onclick={() => openRouteModal(route)}>
+              <Table.Cell class="font-mono text-xs">
+                {route.name}
+                {#if route.filter}
+                  <Badge variant="outline" class="ml-1 text-[10px] px-1 py-0">filter</Badge>
+                {/if}
+              </Table.Cell>
               <Table.Cell class="font-mono text-xs">{route.pattern}</Table.Cell>
               <Table.Cell>{route.target}</Table.Cell>
               <Table.Cell>

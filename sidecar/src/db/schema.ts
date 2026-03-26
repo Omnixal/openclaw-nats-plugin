@@ -1,4 +1,5 @@
-import { sqliteTable, text, integer, index } from '@onebun/drizzle/sqlite';
+import { sqliteTable, text, integer, index, uniqueIndex } from '@onebun/drizzle/sqlite';
+import type { FilterExpression } from '../route-filter/filter-expression';
 
 export const dedupEvents = sqliteTable('dedup_events', {
   eventId: text('event_id').primaryKey(),
@@ -23,10 +24,13 @@ export type NewPendingEvent = typeof pendingEvents.$inferInsert;
 
 export const eventRoutes = sqliteTable('event_routes', {
   id:        text('id').primaryKey(),
-  pattern:   text('pattern').notNull().unique(),
+  name:      text('name').notNull(),
+  pattern:   text('pattern').notNull(),
   target:    text('target').notNull().default('main'),
   enabled:   integer('enabled', { mode: 'boolean' }).notNull().default(true),
   priority:  integer('priority').notNull().default(5),
+  filter:    text('filter', { mode: 'json' }).$type<FilterExpression | null>(),
+  filterDropCount: integer('filter_drop_count').notNull().default(0),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   lastDeliveredAt: integer('last_delivered_at', { mode: 'timestamp_ms' }),
   lastEventSubject: text('last_event_subject'),
@@ -34,6 +38,7 @@ export const eventRoutes = sqliteTable('event_routes', {
   lastDeliveryLagMs: integer('last_delivery_lag_ms'),
   customPayload: text('custom_payload', { mode: 'json' }).$type<unknown>(),
 }, (table) => [
+  uniqueIndex('event_routes_name_idx').on(table.name),
   index('event_routes_pattern_idx').on(table.pattern),
   index('event_routes_target_idx').on(table.target),
 ]);
