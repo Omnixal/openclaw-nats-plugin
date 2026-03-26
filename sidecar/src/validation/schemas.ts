@@ -22,6 +22,7 @@ export const createRouteBodySchema = type({
   pattern: 'string',
   'target?': 'string',
   'priority?': 'number',
+  'payload?': 'unknown',
 });
 
 export type CreateRouteBody = typeof createRouteBodySchema.infer;
@@ -40,6 +41,7 @@ export const updateRouteBodySchema = type({
   'target?': 'string',
   'priority?': 'number',
   'enabled?': 'boolean',
+  'payload?': 'unknown',
 });
 
 export type UpdateRouteBody = typeof updateRouteBodySchema.infer;

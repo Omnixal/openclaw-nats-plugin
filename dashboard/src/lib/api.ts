@@ -53,6 +53,7 @@ export interface EventRoute {
   target: string;
   priority: number;
   enabled: boolean;
+  customPayload: unknown;
   deliveryCount: number;
   lastDeliveredAt: string | null;
   lastEventSubject: string | null;
@@ -68,6 +69,7 @@ export async function createRoute(body: {
   pattern: string;
   target?: string;
   priority?: number;
+  payload?: unknown;
 }): Promise<EventRoute> {
   return fetchJSON('/routes', {
     method: 'POST',
@@ -80,6 +82,7 @@ export interface UpdateRouteBody {
   target?: string;
   priority?: number;
   enabled?: boolean;
+  payload?: unknown;
 }
 
 export async function updateRoute(id: string, body: UpdateRouteBody): Promise<EventRoute> {

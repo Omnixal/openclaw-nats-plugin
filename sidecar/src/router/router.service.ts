@@ -43,6 +43,7 @@ export class RouterService extends BaseService {
     pattern: string,
     target: string = 'main',
     priority: number = 5,
+    customPayload?: unknown,
   ): Promise<{ route: DbEventRoute; created: boolean }> {
     return this.repo.upsert({
       id: ulid(),
@@ -50,11 +51,12 @@ export class RouterService extends BaseService {
       target,
       enabled: true,
       priority,
+      customPayload: customPayload ?? null,
       createdAt: new Date(),
     });
   }
 
-  async updateById(id: string, fields: { target?: string; priority?: number; enabled?: boolean }): Promise<DbEventRoute | null> {
+  async updateById(id: string, fields: { target?: string; priority?: number; enabled?: boolean; customPayload?: unknown }): Promise<DbEventRoute | null> {
     return this.repo.updateById(id, fields);
   }
 

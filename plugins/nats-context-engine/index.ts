@@ -170,13 +170,14 @@ export default function (api: any) {
       properties: {
         pattern: { type: 'string', description: 'Subject pattern (exact, or wildcard with * for one level, > for all descendants)' },
         target: { type: 'string', description: 'Session key to deliver to (default: main)' },
+        payload: { type: 'object', description: 'Additional context payload that will be merged with event data on delivery' },
       },
       required: ['pattern'],
     },
     async execute(_id: string, params: any) {
       const result = await sidecarFetch('/api/routes', {
         method: 'POST',
-        body: JSON.stringify({ pattern: params.pattern, target: params.target ?? 'main' }),
+        body: JSON.stringify({ pattern: params.pattern, target: params.target ?? 'main', payload: params.payload }),
       });
       return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     },
@@ -342,7 +343,7 @@ export default function (api: any) {
 
   api.registerTool({
     name: 'nats_route_update',
-    description: 'Update an existing route subscription. Can change target session, priority, or enabled status.',
+    description: 'Update an existing route subscription. Can change target session, priority, enabled status, or custom payload.',
     parameters: {
       type: 'object',
       properties: {
@@ -350,6 +351,7 @@ export default function (api: any) {
         target: { type: 'string', description: 'New target session' },
         priority: { type: 'number', description: 'New priority (1-10)' },
         enabled: { type: 'boolean', description: 'Enable or disable the route' },
+        payload: { type: 'object', description: 'New custom payload to merge with event data on delivery' },
       },
       required: ['id'],
     },

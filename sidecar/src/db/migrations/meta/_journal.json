@@ -57,6 +57,13 @@
       "when": 1774293614203,
       "tag": "0007_dizzy_komodo",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1774530462833,
+      "tag": "0008_fluffy_pestilence",
+      "breakpoints": true
     }
   ]
 }

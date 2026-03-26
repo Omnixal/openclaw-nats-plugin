@@ -56,15 +56,16 @@ export class ConsumerController extends BaseController {
       if (this.gatewayClient.isAlive()) {
         for (const route of routes) {
           try {
+            const composedPayload = this.composePayload(envelope, route);
             const injectStart = performance.now();
             await this.gatewayClient.inject({
-              message: this.formatMessage(envelope),
+              message: this.formatMessage(envelope.subject, composedPayload),
               eventId: envelope.id,
             });
             const lagMs = Math.round(performance.now() - injectStart);
             await this.routerService.recordDelivery(route.id, envelope.subject, lagMs);
             this.metrics.recordConsume(envelope.subject);
-            await this.logService.logDelivery(route.id, envelope.subject, JSON.stringify({ eventId: envelope.id, target: route.target }));
+            await this.logService.logDelivery(route.id, envelope.subject, JSON.stringify(composedPayload));
           } catch (routeErr) {
             await this.logService.logError('route', route.id, envelope.subject, routeErr);
             // Gateway rejected the request (e.g. missing scope) — store in pending, don't nack
@@ -100,7 +101,33 @@ export class ConsumerController extends BaseController {
     throw new Error('Unable to extract envelope from message');
   }
 
-  private formatMessage(envelope: NatsEventEnvelope): string {
-    return `[NATS:${envelope.subject}] ${JSON.stringify(envelope.payload)}`;
+  private composePayload(envelope: NatsEventEnvelope, route: import('../db/schema').DbEventRoute): Record<string, unknown> {
+    const eventPayload = (envelope.payload && typeof envelope.payload === 'object' && !Array.isArray(envelope.payload))
+      ? (envelope.payload as Record<string, unknown>)
+      : { data: envelope.payload };
+
+    const customPayload = (route.customPayload && typeof route.customPayload === 'object' && !Array.isArray(route.customPayload))
+      ? (route.customPayload as Record<string, unknown>)
+      : {};
+
+    let source: 'cron' | 'timer' | 'external' = 'external';
+    if ('_cron' in eventPayload) source = 'cron';
+    else if ('_timer' in eventPayload) source = 'timer';
+
+    return {
+      ...eventPayload,
+      ...customPayload,
+      _delivery: {
+        pattern: route.pattern,
+        source,
+        eventSubject: envelope.subject,
+        eventId: envelope.id,
+        deliveredAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  private formatMessage(subject: string, composedPayload: Record<string, unknown>): string {
+    return `[NATS:${subject}] ${JSON.stringify(composedPayload)}`;
   }
 }

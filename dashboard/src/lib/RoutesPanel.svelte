@@ -20,6 +20,7 @@
   let formPattern: string = $state('agent.events.');
   let formTarget: string = $state('main');
   let formPriority: number = $state(5);
+  let formPayload: string = $state('');
   let formError: string | null = $state(null);
   let actionError: string | null = $state(null);
   let loading: boolean = $state(false);
@@ -30,6 +31,7 @@
   let editTarget: string = $state('');
   let editPriority: number = $state(5);
   let editEnabled: boolean = $state(true);
+  let editPayload: string = $state('');
   let editError: string | null = $state(null);
   let showDeleteConfirm: boolean = $state(false);
 
@@ -43,8 +45,24 @@
     formPattern = 'agent.events.';
     formTarget = 'main';
     formPriority = 5;
+    formPayload = '';
     formError = null;
     showForm = false;
+  }
+
+  function parseJsonPayload(text: string): unknown | undefined {
+    const trimmed = text.trim();
+    if (!trimmed) return undefined;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return undefined;
+    }
+  }
+
+  function formatPayload(payload: unknown): string {
+    if (payload === null || payload === undefined) return '';
+    return JSON.stringify(payload, null, 2);
   }
 
   async function handleCreate() {
@@ -53,12 +71,17 @@
       formError = 'Pattern must start with "agent.events." followed by at least one token and must not end with "."';
       return;
     }
+    if (formPayload.trim() && parseJsonPayload(formPayload) === undefined) {
+      formError = 'Payload must be valid JSON';
+      return;
+    }
     try {
       loading = true;
       await createRoute({
         pattern: formPattern,
         target: formTarget || undefined,
         priority: formPriority,
+        payload: parseJsonPayload(formPayload),
       });
       resetForm();
       onRefresh();
@@ -75,6 +98,7 @@
     editTarget = route.target;
     editPriority = route.priority;
     editEnabled = route.enabled;
+    editPayload = formatPayload(route.customPayload);
     editError = null;
     showDeleteConfirm = false;
   }
@@ -87,6 +111,10 @@
 
   async function handleSave() {
     if (!selectedRoute) return;
+    if (editPayload.trim() && parseJsonPayload(editPayload) === undefined) {
+      editError = 'Payload must be valid JSON';
+      return;
+    }
     try {
       editError = null;
       loading = true;
@@ -94,6 +122,7 @@
         target: editTarget,
         priority: editPriority,
         enabled: editEnabled,
+        payload: editPayload.trim() ? parseJsonPayload(editPayload) : null,
       });
       closeModal();
       onRefresh();
@@ -187,6 +216,17 @@
               </div>
             </div>
 
+            <div class="space-y-1">
+              <label class="text-xs text-muted-foreground" for="edit-payload">Custom Payload (JSON)</label>
+              <textarea
+                id="edit-payload"
+                bind:value={editPayload}
+                class="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-mono resize-y min-h-16"
+                placeholder={'{"context": "value"}'}
+                rows="3"
+              ></textarea>
+            </div>
+
             <div class="text-xs text-muted-foreground pt-2 space-y-1">
               <div>Deliveries: <span class="font-medium text-foreground">{selectedRoute.deliveryCount}</span></div>
               <div>Last delivered: <span class="font-medium text-foreground">{selectedRoute.lastDeliveredAt ? relativeAge(new Date(selectedRoute.lastDeliveredAt).getTime()) : '\u2014'}</span></div>
@@ -268,6 +308,16 @@
               class="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
             />
           </div>
+        </div>
+        <div class="space-y-1">
+          <label class="text-xs text-muted-foreground" for="route-payload">Custom Payload (JSON)</label>
+          <textarea
+            id="route-payload"
+            bind:value={formPayload}
+            class="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-mono resize-y min-h-16"
+            placeholder={'{"context": "value"}'}
+            rows="2"
+          ></textarea>
         </div>
         <div class="flex gap-2">
           <Button size="sm" onclick={handleCreate} disabled={loading}>

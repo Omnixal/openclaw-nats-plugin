@@ -1,0 +1,1 @@
+ALTER TABLE `event_routes` ADD `custom_payload` text;

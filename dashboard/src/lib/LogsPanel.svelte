@@ -2,6 +2,7 @@
   import * as Table from '$lib/components/ui/table';
   import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
+  import { Modal } from '$lib/components/ui/modal';
   import { type ExecutionLog, type LogFilters, getLogs } from '$lib/api';
   import { relativeAge } from '$lib/utils';
 
@@ -87,11 +88,22 @@
     }
   }
 
+  let selectedLog: ExecutionLog | null = $state(null);
+
   function parseDetail(detail: string | null): string {
     if (!detail) return '';
     try {
       const parsed = JSON.parse(detail);
       return parsed.message || parsed.target || JSON.stringify(parsed);
+    } catch {
+      return detail;
+    }
+  }
+
+  function formatDetailFull(detail: string | null): string {
+    if (!detail) return '(no detail)';
+    try {
+      return JSON.stringify(JSON.parse(detail), null, 2);
     } catch {
       return detail;
     }
@@ -105,6 +117,43 @@
   let totalPages = $derived(Math.max(1, Math.ceil(total / PAGE_SIZE)));
   let hasFilters = $derived(filterStatus !== '' || filterAction !== '' || filterSubject.trim() !== '');
 </script>
+
+{#if selectedLog}
+  <Modal
+    open={true}
+    title="Log Detail"
+    onClose={() => (selectedLog = null)}
+  >
+    {#snippet children()}
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div>
+            <span class="text-muted-foreground">Time:</span>
+            <span class="font-medium ml-1">{new Date(selectedLog.createdAt).toLocaleString()}</span>
+          </div>
+          <div>
+            <span class="text-muted-foreground">Action:</span>
+            <Badge variant="outline" class="ml-1">{selectedLog.action}</Badge>
+          </div>
+          <div class="col-span-2">
+            <span class="text-muted-foreground">Subject:</span>
+            <span class="font-mono font-medium ml-1">{selectedLog.subject}</span>
+          </div>
+          <div>
+            <span class="text-muted-foreground">Status:</span>
+            <Badge variant={selectedLog.success ? 'default' : 'destructive'} class="ml-1">
+              {selectedLog.success ? 'ok' : 'error'}
+            </Badge>
+          </div>
+        </div>
+        <div class="space-y-1">
+          <span class="text-xs text-muted-foreground">Payload / Detail:</span>
+          <pre class="rounded-md bg-muted p-3 text-xs font-mono overflow-auto max-h-80 whitespace-pre-wrap break-all">{formatDetailFull(selectedLog.detail)}</pre>
+        </div>
+      </div>
+    {/snippet}
+  </Modal>
+{/if}
 
 <div class="space-y-3">
   <!-- Filters -->
@@ -171,7 +220,7 @@
       </Table.Header>
       <Table.Body>
         {#each items as log}
-          <Table.Row>
+          <Table.Row class="cursor-pointer hover:bg-muted/50" onclick={() => (selectedLog = log)}>
             <Table.Cell class="text-xs text-muted-foreground whitespace-nowrap">
               {relativeAge(log.createdAt)}
             </Table.Cell>

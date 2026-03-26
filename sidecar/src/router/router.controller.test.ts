@@ -72,13 +72,13 @@ describe('RouterController.createRoute', () => {
       priority: 3,
     }) as any;
     expect(res.status).toBe(200);
-    expect(mockRouterService.subscribe).toHaveBeenCalledWith('agent.events.>', 'worker', 3);
+    expect(mockRouterService.subscribe).toHaveBeenCalledWith('agent.events.>', 'worker', 3, undefined);
   });
 
   it('uses default target and priority when not provided', async () => {
     const { ctrl, mockRouterService } = createController();
     await ctrl.createRoute({ pattern: 'agent.events.test' });
-    expect(mockRouterService.subscribe).toHaveBeenCalledWith('agent.events.test', 'main', 5);
+    expect(mockRouterService.subscribe).toHaveBeenCalledWith('agent.events.test', 'main', 5, undefined);
   });
 });
 

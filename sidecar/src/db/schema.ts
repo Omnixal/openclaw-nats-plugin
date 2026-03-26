@@ -32,6 +32,7 @@ export const eventRoutes = sqliteTable('event_routes', {
   lastEventSubject: text('last_event_subject'),
   deliveryCount: integer('delivery_count').notNull().default(0),
   lastDeliveryLagMs: integer('last_delivery_lag_ms'),
+  customPayload: text('custom_payload', { mode: 'json' }).$type<unknown>(),
 }, (table) => [
   index('event_routes_pattern_idx').on(table.pattern),
   index('event_routes_target_idx').on(table.target),

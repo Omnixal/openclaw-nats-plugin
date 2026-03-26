@@ -86,7 +86,15 @@ describe('ConsumerController', () => {
     expect(mockGatewayClient.inject).toHaveBeenCalledTimes(1);
 
     const injectCall = mockGatewayClient.inject.mock.calls[0][0];
-    expect(injectCall.message).toBe(`[NATS:${envelope.subject}] ${JSON.stringify(envelope.payload)}`);
+    expect(injectCall.message).toContain(`[NATS:${envelope.subject}]`);
+    // Composed payload includes event data + _delivery metadata
+    const msgPayload = JSON.parse(injectCall.message.replace(`[NATS:${envelope.subject}] `, ''));
+    expect(msgPayload.foo).toBe('bar');
+    expect(msgPayload._delivery).toBeDefined();
+    expect(msgPayload._delivery.pattern).toBe('agent.events.>');
+    expect(msgPayload._delivery.source).toBe('external');
+    expect(msgPayload._delivery.eventSubject).toBe(envelope.subject);
+    expect(msgPayload._delivery.eventId).toBe(envelope.id);
     expect(injectCall.eventId).toBe(envelope.id);
 
     expect(mockRouterService.recordDelivery).toHaveBeenCalledTimes(1);
@@ -174,15 +182,48 @@ describe('ConsumerController', () => {
     expect(msg.ack).not.toHaveBeenCalled();
   });
 
-  it('should format message as [NATS:subject] payload', () => {
+  it('should format message as [NATS:subject] composedPayload', () => {
+    const composedPayload = { orderId: 123, _delivery: { pattern: 'agent.events.>', source: 'external' } };
+    const result = (service as any).formatMessage('agent.events.order.placed', composedPayload);
+
+    expect(result).toBe(`[NATS:agent.events.order.placed] ${JSON.stringify(composedPayload)}`);
+  });
+
+  it('should compose payload with _delivery metadata and custom payload', () => {
     const envelope = makeEnvelope({
       subject: 'agent.events.order.placed',
       payload: { orderId: 123 },
     });
+    const route = { ...makeDefaultRoute(), customPayload: { context: 'my-context' } };
 
-    const result = (service as any).formatMessage(envelope);
+    const result = (service as any).composePayload(envelope, route);
 
-    expect(result).toBe('[NATS:agent.events.order.placed] {"orderId":123}');
+    expect(result.orderId).toBe(123);
+    expect(result.context).toBe('my-context');
+    expect(result._delivery.pattern).toBe('agent.events.>');
+    expect(result._delivery.source).toBe('external');
+    expect(result._delivery.eventSubject).toBe('agent.events.order.placed');
+    expect(result._delivery.eventId).toBe(envelope.id);
+  });
+
+  it('should detect cron source from _cron in payload', () => {
+    const envelope = makeEnvelope({
+      payload: { _cron: { jobName: 'daily' } },
+    });
+    const route = makeDefaultRoute();
+
+    const result = (service as any).composePayload(envelope, route);
+    expect(result._delivery.source).toBe('cron');
+  });
+
+  it('should detect timer source from _timer in payload', () => {
+    const envelope = makeEnvelope({
+      payload: { _timer: { name: 'check' } },
+    });
+    const route = makeDefaultRoute();
+
+    const result = (service as any).composePayload(envelope, route);
+    expect(result._delivery.source).toBe('timer');
   });
 
   it('should deliver to multiple matching routes', async () => {

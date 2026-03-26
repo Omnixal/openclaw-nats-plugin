@@ -41,6 +41,7 @@ export class RouterRepository extends BaseService {
           target: sql`excluded.target`,
           priority: sql`excluded.priority`,
           enabled: sql`excluded.enabled`,
+          customPayload: sql`excluded.custom_payload`,
         },
       })
       .returning();
@@ -49,7 +50,7 @@ export class RouterRepository extends BaseService {
     return { route: result, created };
   }
 
-  async updateById(id: string, fields: Partial<Pick<DbEventRoute, 'target' | 'priority' | 'enabled'>>): Promise<DbEventRoute | null> {
+  async updateById(id: string, fields: Partial<Pick<DbEventRoute, 'target' | 'priority' | 'enabled' | 'customPayload'>>): Promise<DbEventRoute | null> {
     const [result] = await this.db.update(eventRoutes)
       .set(fields)
       .where(eq(eventRoutes.id, id))

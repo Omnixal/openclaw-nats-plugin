@@ -41,6 +41,7 @@ export class RouterController extends BaseController {
       target: r.target,
       priority: r.priority,
       enabled: r.enabled,
+      customPayload: r.customPayload ?? null,
       lastDeliveredAt: r.lastDeliveredAt?.toISOString() ?? null,
       lastEventSubject: r.lastEventSubject ?? null,
       deliveryCount: r.deliveryCount ?? 0,
@@ -70,6 +71,7 @@ export class RouterController extends BaseController {
       body.pattern,
       body.target ?? 'main',
       body.priority ?? 5,
+      body.payload,
     );
     return this.success({ ...route, created });
   }
@@ -79,7 +81,8 @@ export class RouterController extends BaseController {
     @Param('id') id: string,
     @Body(updateRouteBodySchema) body: UpdateRouteBody,
   ): Promise<OneBunResponse> {
-    const updated = await this.routerService.updateById(id, body);
+    const { payload: customPayload, ...rest } = body;
+    const updated = await this.routerService.updateById(id, { ...rest, ...(customPayload !== undefined ? { customPayload } : {}) });
     if (!updated) {
       return this.error('Route not found', 404, 404);
     }
