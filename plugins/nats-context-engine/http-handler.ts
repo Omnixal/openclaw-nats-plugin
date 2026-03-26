@@ -8,7 +8,14 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 const ROUTE_PREFIX = '/nats-dashboard';
 const SIDECAR_URL = process.env.NATS_SIDECAR_URL || 'http://127.0.0.1:3104';
 const API_KEY = process.env.NATS_PLUGIN_API_KEY || 'dev-nats-plugin-key';
-const sidecarParsed = new URL(SIDECAR_URL);
+
+let sidecarParsed: URL;
+try {
+  sidecarParsed = new URL(SIDECAR_URL);
+} catch (e) {
+  console.error(`[nats-dashboard] Invalid NATS_SIDECAR_URL: ${SIDECAR_URL}`, e);
+  sidecarParsed = new URL('http://127.0.0.1:3104');
+}
 
 // Stable location (copied during setup) takes priority over in-package dist
 const STABLE_DIST = path.join(homedir(), '.openclaw', 'nats-plugin', 'dashboard');
@@ -28,10 +35,40 @@ const MIME_TYPES: Record<string, string> = {
 
 export function createDashboardHandler() {
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
-    const url = new URL(req.url!, `http://${req.headers.host}`);
-    const subPath = url.pathname.slice(ROUTE_PREFIX.length);
+    const rawUrl = req.url || '/';
+    const url = new URL(rawUrl, `http://${req.headers.host || 'localhost'}`);
 
-    // API proxy: /nats-dashboard/api/* → sidecar
+    // Support both prefixed and stripped paths (OpenClaw may strip the prefix)
+    let subPath: string;
+    if (url.pathname.startsWith(ROUTE_PREFIX)) {
+      subPath = url.pathname.slice(ROUTE_PREFIX.length);
+    } else {
+      subPath = url.pathname;
+    }
+
+    // Debug endpoint: /nats-dashboard/api/_debug (or /api/_debug if prefix stripped)
+    if (subPath === '/api/_debug') {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({
+        rawUrl,
+        pathname: url.pathname,
+        subPath,
+        sidecarUrl: SIDECAR_URL,
+        sidecarHost: sidecarParsed.hostname,
+        sidecarPort: sidecarParsed.port,
+        apiKey: API_KEY ? `${API_KEY.slice(0, 4)}...` : '(not set)',
+        distDir: DIST_DIR,
+        distExists: existsSync(path.join(DIST_DIR, 'index.html')),
+        env: {
+          NATS_SIDECAR_URL: process.env.NATS_SIDECAR_URL || '(default)',
+          NATS_PLUGIN_API_KEY: process.env.NATS_PLUGIN_API_KEY ? 'set' : '(default)',
+        },
+      }, null, 2));
+      return true;
+    }
+
+    // API proxy: /api/* → sidecar
     if (subPath.startsWith('/api/')) {
       return proxyToSidecar(subPath, url.search, req, res);
     }
@@ -81,10 +118,18 @@ async function proxyToSidecar(
     res.end(upstream.body);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[nats-dashboard] Sidecar proxy error: ${message} (url=${SIDECAR_URL}${subPath})`);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error(`[nats-dashboard] Sidecar proxy error: ${message} (target=${sidecarParsed.hostname}:${sidecarParsed.port}${subPath})`);
+    if (stack) console.error(stack);
     res.statusCode = 502;
     res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'Sidecar unreachable', detail: message }));
+    res.end(JSON.stringify({
+      error: 'Sidecar unreachable',
+      detail: message,
+      target: `${sidecarParsed.hostname}:${sidecarParsed.port}${subPath}`,
+      sidecarUrl: SIDECAR_URL,
+      hint: 'Open /nats-dashboard/api/_debug for full diagnostics',
+    }));
   }
   return true;
 }
